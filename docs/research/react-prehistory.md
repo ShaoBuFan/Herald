@@ -26,7 +26,7 @@
 六条判决：
 
 1. **ReAct 的思考侧是 CoT，动作侧是 WebGPT 与 SayCan。** 它自己在前言里就是这么分的：一边是「reasoning... e.g. chain-of-thought prompting」，一边是「acting... e.g. action plan generation」。ReAct 的贡献不是发明这两侧，而是把两侧接进同一个循环。
-2. **ReAct 明确承认 Inner Monologue 是最接近的前作**，并且把差别定义在「思考的自由度与稀疏性」上——不是有没有思考，而是思考受不受限。这一点决定了后来所有 agent 的 thinking 通道设计。
+2. **ReAct 明确承认 Inner Monologue 是最接近的前作，但它对 IM 的概括是不完整的。** ReAct 说 IM 的独白「limited to observations of the environment state」，但 IM 正文里有第三类反馈 **Active Scene Description**——LLM 主动提问、拿回非结构化答案。这个概括遗漏了它。ReAct 更站得住的差别是：**IM 没有把思考做成动作空间里的一等公民**，而 ReAct 把它显式定义并对固定形式做了消融。详见 §4.3。
 3. **WebGPT → ReAct 的分叉不在「训练 vs 提示」这个表面标签上，而在动作空间的复杂度。** WebGPT 要训，是因为它的动作空间大（浏览、引用、作答）且需要人类偏好信号；ReAct 敢只提示，是因为在知识密集任务上它把动作空间压到三个（`search` / `lookup` / `finish`）。ReAct 自己用一句话点破了这层关系。
 4. **ReAct 的微调实验比它的提示实验更值得记。** 3000 条自举轨迹微调后，8B 微调 ReAct 打得过所有 62B 提示方法。这是「工具使用属于权重，不属于提示」这条判词在 ReAct 论文内部的证据——而 [`react-lineage.md`](react-lineage.md) 目前把它归给了 2023-06 之后的原生函数调用。
 5. **Self-Consistency 那条路在 agent 里断了。** CoT-SC 要把同一条问题采样几十条路径投票（论文默认 40 条）；agent 每步都有副作用，采样几十条带副作用的轨迹在语义上就不成立。ReAct 只在「无副作用的推理」这一侧借用 CoT-SC，动作侧永远只跑一条。
@@ -94,6 +94,8 @@ ReAct 在构造 Act-only 基线时这样描述它：
 > 「To our knowledge, ReAct is the first demonstration of combined reasoning and action using an LLM applied to an interactive environment within a closed-loop system. Perhaps the closest prior work is Inner Monologue (IM)... However, **IM's "inner monologue" is limited to observations of the environment state and what needs to be completed by the agent for the goal to be satisfied.** In contrast, the reasoning traces in ReAct for decision making is flexible and sparse, allowing diverse reasoning types to be induced for different tasks.」
 
 这里 ReAct 划的分界线是**思考的表达力**：IM 的独白是环境状态的复述，ReAct 的思考是可自由形式的。它还用 ReAct-IM 消融把这条线量了出来（ALFWorld 71 vs 53，见 [`react-lineage.md`](react-lineage.md) 第 3 节）。
+
+**但这个概括需要修正。** 读过 IM 正文后（§4.3）：IM 的第三类反馈 Active Scene Description 允许「LLM 主动提问、拿回非结构化答案」，且它有一节专门记录自发涌现的重规划行为。ReAct 描述的是 IM 的被动反馈那一半。两条论断的全部证据见 §4.3。
 
 ### 两项被忽略的自陈
 
@@ -333,13 +335,91 @@ v2 追加的内容里有几项值得单独记：增加了 PaLM 结果、**增加
 
 **技能报告高价值却执行失败时，系统不会应对。** 这正是权限系统与工具执行语义要处理的问题，SayCan 停在「承认它」这一步。
 
+**而 Inner Monologue 就是冲着这条局限来的**（§4.3）：它的 Related Work 直接指出 SayCan 这类方法「assume that each proposed step is executed successfully」，真实厨房里一旦强制注入故障，SayCan 成功率归零，带反馈的版本还能救回三到七成。**两篇是接续关系，不是并列。**
+
 ### 4.3 Inner Monologue（arXiv:2207.05608）
 
-Huang et al., Google，2022-07-12 提交（[摘要页](https://arxiv.org/abs/2207.05608)）。**比 ReAct 早三个月。**
+Huang et al., Google，2022-07-12 提交，单版本（[摘要页](https://arxiv.org/abs/2207.05608)）。**比 ReAct 早三个月，且全文未提及 ReAct**——引用是单向的。它与 SayCan 同属 Everyday Robots 项目线。
 
-它的主张：「by leveraging environment feedback, LLMs are able to form an inner monologue that allows them to more richly process and plan in robotic control scenarios」。反馈来源包括成功检测、场景描述、人类交互。结论是**闭环的语言反馈显著提升高层指令完成率**，横跨三个域（模拟与真实的桌面重排、真实厨房环境的长时域移动操作）。
+下面全部为正文核对（`docs/ref/2207.05608v1.pdf`）。
 
-**ReAct 明确承认它是最接近的前作**（引语见第 1 节）。三篇里它对 ReAct 的血缘最近，因为它是唯一同时具备「循环 + 语言思考 + 环境反馈」三项的。
+**它不是训练式方法。** 与 SayCan 的关键差别在这里：
+
+> 「in our specific implementations of Inner Monologue, we use pre-trained LLMs for planning that are **not finetuned**, but rather evaluated **solely with few-shot prompting**」
+
+**它要修的是 SayCan 的哪个缺陷**——Related Work 写得比 SayCan 自己的局限一节更直接：
+
+> 「However, both approaches effectively produce the plan **while assuming that each proposed step is executed successfully by the agent.** As a result, these approaches may not be robust in handling intermediate failures in dynamic environments or with poor lower level policies.」
+
+也就是说，SayCan 那条「技能报告高价值却执行失败时系统不会应对」的自陈局限，**是 Inner Monologue 的出发点**。两篇的关系不是并列，是接续。
+
+#### 三类反馈，其中一类是模型主动发问
+
+| 类型 | 内容 | 触发方式 |
+|---|---|---|
+| **Success Detection** | 某个低层技能是否成功（二分类） | 被动注入 |
+| **Passive Scene Description** | 场景语义，分 Object feedback（物体识别）与 Scene feedback（任务进度） | 每次规划自动注入 |
+| **Active Scene Description** | LLM **主动提问**，由人或 VQA 模型回答 | 模型发起 |
+
+第三类是重点。原文说它「encompasses sources of feedback that are provided directly in response to **active queries by the LLM planner**」，而且「the LLM can receive **unstructured answers to open-ended questions**」。
+
+**这件事值得单独标出来**：Inner Monologue 已经有了「模型自己发起查询、拿回非结构化结果」的机制。这与 ReAct 的 `Action → Observation` 在结构上是同一件事。所以 ReAct 对它的概括需要打折。
+
+#### ReAct 的概括是不完整的
+
+ReAct 说 IM 的独白「is limited to observations of the environment state and what needs to be completed by the agent for the goal to be satisfied」。**这个描述准确覆盖了 IM 的被动两类反馈，但漏掉了第三类。**
+
+IM 自己的原文把它的反馈描述为「any type of environment feedback can inform the LLM planner, **as long as it can be expressed through language**」——这个表述比 ReAct 给它的框要宽。
+
+更麻烦的是，IM 论文里还有一个专门的 Emergent Capabilities 一节，记录了**没有被提示过、但模型自发涌现的行为**：
+
+- **Self-Proposing Goals under Infeasibility**：拿一个重到拿不动的积木失败后，模型自行改换目标「find a lighter block」并完成任务
+- **Continued Adaptation to New Instructions**：人在任务中途改目标、又改回去，模型跟着切换两次；没被教过「please stop」也能产出 `done`
+- **Interactive Scene Understanding**：任务执行完后反问场景问题，模型能正确回答需要时序与具身推理的问题
+- **Multilingual Interaction**：中文指令照样理解并重述成英文目标
+
+这四条说明 IM 的「思考」有主动重规划的成分，不只是复述环境状态。
+
+**那么 ReAct 的辩护空间在哪？** 有一个，但比它写的窄：IM 的这段涌现行为作者自己承认「they are of **varying levels of consistency** when no similar examples have been provided in the prompt」。ReAct 更站得住的差别不是「IM 没有自由思考」，而是**IM 没有把思考做成动作空间的一个一等公民**——IM 的思考是提示注入的副产品，ReAct 把它变成 `Â = A ∪ L` 里被显式定义的东西，并配了 ReAct-IM 消融来量化固定形式的代价（ALFWorld 71 vs 53）。
+
+#### 实验：三组场景，数字都硬
+
+**模拟桌面重排（Ravens 环境，50 episodes）**。基线是 CLIPort，逐级加反馈：
+
+| 任务 | CLIPort + oracle | +LLM | +Object | +Object+Success | +Object+Scene |
+|---|---|---|---|---|---|
+| Pick and place（已见） | 24% | 74% | 80% | 90% | **94%** |
+| Put blocks in matching bowls（未见） | 0% | 0% | 56% | 70% | **82%** |
+| Put blocks on mismatched bowls（未见） | 0% | 0% | 62% | 76% | **86%** |
+| Stack all blocks on [x] corner（未见） | 0% | 0% | 0% | 4% | 6% |
+
+**未见任务上基线是 0%，加完整反馈到 82–86%。** 最后一行的 6% 说明这个方法也有它自己搞不定的任务。
+
+**真实桌面（10 次运行）**：Finish 3-block stacking 从 20% → 100%；Sort fruits from bottles 从 20% → 80%；总计 20% → 90%。
+
+**真实厨房移动操作（120 次评测，直接对比 SayCan）**——这是全篇最有信息量的一组，因为第 4.2 节说过 SayCan 在真实厨房是 81% / 60%：
+
+| 任务类 | SayCan | +Success | +Object+Success |
+|---|---|---|---|
+| Manipulation（无扰动） | 50.0% | 62.5% | **75.0%** |
+| Mobile Manipulation（无扰动） | 50.0% | 50.0% | **75.0%** |
+| Drawers（无扰动） | 83.3% | 83.3% | **100.0%** |
+| Manipulation（**有扰动**） | 12.5% | 25.0% | 33.3% |
+| Mobile Manipulation（**有扰动**） | **0.0%** | 25.0% | **75.0%** |
+| Drawers（**有扰动**） | **0.0%** | 44.4% | 44.4% |
+
+作者的解读：
+
+> 「Without any LLM-informed feedback **SayCan has success rate close to 0%** since it does not have explicitly high-level retry behavior.」
+
+**结论要说准**：无扰动时 SayCan 表现尚可，差距不算悬殊；**一旦低层技能被迫失败，SayCan 直接归零，而有反馈的版本还能救回三到七成。** 这个对比把「闭环反馈」的价值定位得很清楚——**它不是让平均情况更好，而是让失败可恢复**。这与 ReAct 反复强调的「把错误变成观察」是同一个论点的量化版本。
+
+#### 作者自陈的两项代价
+
+1. **用了 oracle 场景描述**：「we assume access to oracle scene descriptors in the form of **human observers or scripted systems**」——人来描述场景。这是个人在环里的系统，不是全自动。
+2. **模型会忽略反馈**：「In some instances, we found that the **LLM planners ignored the environment feedback** and still proposed policy skills involving objects not present in the scene.」
+
+第 2 条值得记住：**把反馈放进上下文不等于模型会用它。** 另有两类失败来源——成功检测的假阴（导致多余重试）与假阳（给环境引入「对抗性部分可观测性」）、以及控制错误。
 
 ### 4.4 MRKL（arXiv:2205.00445）
 
@@ -417,6 +497,9 @@ ReAct 的立场是第 2 条，而且是被低估的设计选择：**把错误变
 | 把工具用法留在提示里 | Toolformer | 改为自监督训练进权重 | [2302.04761](https://arxiv.org/abs/2302.04761) |
 | 固定槽位的检索触发 | Self-Ask | 结构固定，模型无自由度（与 ReAct 的对照） | [2210.03350](https://arxiv.org/abs/2210.03350) |
 | 只由环境状态构成的独白 | Inner Monologue → ReAct | ReAct 认为 IM 的思考受限，改为自由形式且稀疏 | [ar5iv 全文](https://ar5iv.labs.arxiv.org/html/2210.03629) |
+| 假设每一步都执行成功 | SayCan → Inner Monologue | SayCan 这类方法没有高层重试行为，强制故障时成功率归零（0%–12.5%） | [2207.05608](https://arxiv.org/abs/2207.05608) |
+| 只在任务开始时识别一次场景 | Inner Monologue | 开环变体（「similar to the system demonstrated in [19]」）弱于持续注入反馈 | 同上 |
+| 把反馈放进上下文就以为模型会用 | Inner Monologue 的失败模式 | 「we found that the LLM planners **ignored the environment feedback** and still proposed policy skills involving objects not present in the scene」 | 同上 |
 | 让模型自己选解码方式（贪心） | CoT → Self-Consistency | 涌现只在约 100B 以上成立；小模型生成 fluent but illogical 的链 | [2201.11903](https://arxiv.org/abs/2201.11903) |
 
 ---
@@ -444,13 +527,13 @@ ReAct 的立场是第 2 条，而且是被低估的设计选择：**把错误变
 
 ### 证据层级（2026-09-21 更新后）
 
-已核对 PDF 正文的五篇（在 `docs/ref/`）：ReAct v3、SayCan v2、WebGPT v3、CoT v6、Self-Consistency v4。
+已核对 PDF 正文的六篇（在 `docs/ref/`）：ReAct v3、SayCan v2、WebGPT v3、CoT v6、Self-Consistency v4、Inner Monologue v1。
 
-仍只有 arXiv 摘要页的：Scratchpads、Least-to-Most、Self-Ask、PAL、RAG、Toolformer、Inner Monologue、MRKL、GSM8K。
+仍只有 arXiv 摘要页的：Scratchpads、Least-to-Most、Self-Ask、PAL、RAG、Toolformer、MRKL、GSM8K。
 
-也就是说：**继承关系（第 1 节）与三个最关键的正文细节（SayCan 公式与消融、WebGPT 动作空间与记忆模型、Self-Consistency 采样参数）已是正文级；其余各篇的定量结果仍是摘要级。**
+也就是说：**继承关系（第 1 节）与四个最关键的正文细节（SayCan 公式与消融、WebGPT 动作空间与记忆模型、Self-Consistency 采样参数、Inner Monologue 反馈分类与实验数字）已是正文级；其余各篇的定量结果仍是摘要级。**
 
-### 初版的四处修正
+### 初版的五处修正
 
 | 初版断言 | 修正后 | 成因 |
 |---|---|---|
@@ -458,6 +541,9 @@ ReAct 的立场是第 2 条，而且是被低估的设计选择：**把错误变
 | 「SayCan 的精确打分公式未确认」 | **已补**：`π = arg max p(c_π\|s,ℓ_π)·p(ℓ_π\|i)` | 读到 PDF 正文 |
 | 「WebGPT 的动作空间完整清单未确认」 | **已补**：十种命令 + 每步全新 context | 读到 PDF 正文 |
 | 「CoT-SC：采样 21 条、temperature 0.7」 | **半错**：21 条是 ReAct 自设的算力折中，Self-Consistency 原文默认 40 条 | 把 ReAct 的参数记到了 Self-Consistency 头上 |
+| 转述 ReAct 对 IM 的概括，未加保留 | **已改为揭示其不完整**：IM 有 LLM 主动提问的第三类反馈，ReAct 只描述了被动那一半 | 直接采信了一手来源里的**转述**，未回被转述方原文核对 |
+
+最后一条与前四条性质不同：前四条是我自己出错，这一条是 **ReAct 对 IM 的概括本身有偏，我照抄了**。教训是——**论文里「X 方法的局限是……」这类转述，必须回 X 的原文核一遍再用。** 引语逐字无误，不代表引语描述的事实无误。
 
 ### 仍然未确认的条目
 
@@ -477,5 +563,5 @@ ReAct 的立场是第 2 条，而且是被低估的设计选择：**把错误变
 1. **arXiv:2005.11401**（RAG）——RAG-Sequence / RAG-Token 术语与两种形式的实际差别
 2. **arXiv:2205.11916**（Zero-shot CoT）——补上推理线最后一个成员
 3. **arXiv:2205.10625**（Least-to-Most）——两阶段提示的具体构造
-4. **arXiv:2207.05608**（Inner Monologue）——本篇对它只有摘要级认识，而它是 ReAct 自己承认的最近前作
+4. **arXiv:2207.01206**（WebShop）——ReAct 的两个决策任务基准之一，ReAct 论文引用它但本篇未展开
 5. **Toolformer / Scratchpads / MRKL** 的发表信息——只能从会议官网或 OpenReview 查，arXiv 页面没有

@@ -13,6 +13,7 @@
 | `2112.09332v3.pdf` | WebGPT: Browser-assisted question-answering with human feedback | v3（2022-06-01） | https://arxiv.org/abs/2112.09332v3 | [`react-prehistory.md`](../research/react-prehistory.md) §4.1、§5.1 |
 | `2201.11903v6.pdf` | Chain-of-Thought Prompting Elicits Reasoning in Large Language Models | v6（2023-01-10） | https://arxiv.org/abs/2201.11903v6 | [`react-prehistory.md`](../research/react-prehistory.md) §2.2 |
 | `2203.11171v4.pdf` | Self-Consistency Improves Chain of Thought Reasoning in Language Models | v4（ICLR 2023 camera ready，2023-03-07） | https://arxiv.org/abs/2203.11171v4 | [`react-prehistory.md`](../research/react-prehistory.md) §2.3、§6 |
+| `2207.05608v1.pdf` | Inner Monologue: Embodied Reasoning through Planning with Language Models | v1（2022-07-12，单版本） | https://arxiv.org/abs/2207.05608v1 | [`react-prehistory.md`](../research/react-prehistory.md) §1、§4.3、§6 |
 
 ## 为什么固定版本号
 
@@ -27,6 +28,7 @@ curl.exe -LO https://arxiv.org/pdf/2204.01691v2
 curl.exe -LO https://arxiv.org/pdf/2112.09332v3
 curl.exe -LO https://arxiv.org/pdf/2201.11903v6
 curl.exe -LO https://arxiv.org/pdf/2203.11171v4
+curl.exe -LO https://arxiv.org/pdf/2207.05608v1
 ```
 
 ## 提取正文的文本
