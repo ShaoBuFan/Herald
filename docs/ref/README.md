@@ -14,6 +14,7 @@
 | `2201.11903v6.pdf` | Chain-of-Thought Prompting Elicits Reasoning in Large Language Models | v6（2023-01-10） | https://arxiv.org/abs/2201.11903v6 | [`react-prehistory.md`](../research/react-prehistory.md) §2.2 |
 | `2203.11171v4.pdf` | Self-Consistency Improves Chain of Thought Reasoning in Language Models | v4（ICLR 2023 camera ready，2023-03-07） | https://arxiv.org/abs/2203.11171v4 | [`react-prehistory.md`](../research/react-prehistory.md) §2.3、§6 |
 | `2207.05608v1.pdf` | Inner Monologue: Embodied Reasoning through Planning with Language Models | v1（2022-07-12，单版本） | https://arxiv.org/abs/2207.05608v1 | [`react-prehistory.md`](../research/react-prehistory.md) §1、§4.3、§6 |
+| `2205.11916v4.pdf` | Large Language Models are Zero-Shot Reasoners | v4（2023-03-14） | https://arxiv.org/abs/2205.11916v4 | [`react-prehistory.md`](../research/react-prehistory.md) §2.6、§4、§7 |
 
 ## 为什么固定版本号
 
@@ -29,6 +30,7 @@ curl.exe -LO https://arxiv.org/pdf/2112.09332v3
 curl.exe -LO https://arxiv.org/pdf/2201.11903v6
 curl.exe -LO https://arxiv.org/pdf/2203.11171v4
 curl.exe -LO https://arxiv.org/pdf/2207.05608v1
+curl.exe -LO https://arxiv.org/pdf/2205.11916v4
 ```
 
 ## 提取正文的文本

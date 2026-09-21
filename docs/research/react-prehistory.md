@@ -1,4 +1,4 @@
-# ReAct 之前：推理线与行动线的分头演进
+# ReAct 之前：推理线与行动线的分头起步与中途互换
 
 调研日期：2026-09-21。本文补的是 [`react-lineage.md`](react-lineage.md) 第 11 节留下的前史缺口——ReAct 自己继承了谁。
 
@@ -16,6 +16,7 @@
 | 推理 | CoT (2201.11903) | 2022-01 | 模型输出（纯提示） | **直接继承**，被当成要修的对象 |
 | 采样 | Self-Consistency (2203.11171) | 2022-03 | 模型输出 × n 条路径 | **被改掉**（ReAct 只跑一条） |
 | 分解 | Least-to-Most (2205.10625) | 2022-05 | 模型输出（两阶段） | 平行，ReAct 只列为跟进工作 |
+| 零样本推理 | Zero-shot CoT (2205.11916) | 2022-05 | 模型输出（单句触发，**问两次**） | **被引**；「Let's think step by step」的出处 |
 | 中间步骤 | PAL (2211.10435) | 2022-11 | 模型写代码，解释器算 | 事后：ReAct 的「行动」的另一种接法 |
 | 检索 | RAG (2005.11401) | 2020-05 | **不在模型里**，检索器决定 | 血缘远；决策权归属相反 |
 | 动作 | WebGPT (2112.09332) | 2021-12 | 无显式思考通道 | **被改掉**：训练 → 提示 |
@@ -23,7 +24,7 @@
 | 思考+反馈 | Inner Monologue (2207.05608) | 2022-07 | 环境反馈转成语言 | **ReAct 自己承认的最近前作** |
 | 工具 | Toolformer (2302.04761) | 2023-02 | 权重（自监督训练） | 晚 ReAct 一年，反向路线 |
 
-六条判决：
+七条判决：
 
 1. **ReAct 的思考侧是 CoT，动作侧是 WebGPT 与 SayCan。** 它自己在前言里就是这么分的：一边是「reasoning... e.g. chain-of-thought prompting」，一边是「acting... e.g. action plan generation」。ReAct 的贡献不是发明这两侧，而是把两侧接进同一个循环。
 2. **ReAct 明确承认 Inner Monologue 是最接近的前作，但它对 IM 的概括是不完整的。** ReAct 说 IM 的独白「limited to observations of the environment state」，但 IM 正文里有第三类反馈 **Active Scene Description**——LLM 主动提问、拿回非结构化答案。这个概括遗漏了它。ReAct 更站得住的差别是：**IM 没有把思考做成动作空间里的一等公民**，而 ReAct 把它显式定义并对固定形式做了消融。详见 §4.3。
@@ -31,6 +32,7 @@
 4. **ReAct 的微调实验比它的提示实验更值得记。** 3000 条自举轨迹微调后，8B 微调 ReAct 打得过所有 62B 提示方法。这是「工具使用属于权重，不属于提示」这条判词在 ReAct 论文内部的证据——而 [`react-lineage.md`](react-lineage.md) 目前把它归给了 2023-06 之后的原生函数调用。
 5. **Self-Consistency 那条路在 agent 里断了。** CoT-SC 要把同一条问题采样几十条路径投票（论文默认 40 条）；agent 每步都有副作用，采样几十条带副作用的轨迹在语义上就不成立。ReAct 只在「无副作用的推理」这一侧借用 CoT-SC，动作侧永远只跑一条。
 6. **LLM 与世界接地缺一不可，SayCan 的消融把这件事量了出来。** 去掉 LLM，规划成功率 **0%**；去掉世界接地，84% → **67%**。这直接对应今天 harness 的两半——模型负责「做什么有意义」，工具与环境负责「什么是真的」。只优化其中一半都是白费。
+7. **两条线并非完全独立，系统提示里的一句话可能横跨两线。** SayCan 用来驱动机器人规划的 `First,`，与「Let's think step by step」出自同一张提示词对照表——后者是推理线的研究。**别把推理研究和 agent 工程当成两个可以分开读的领域。**
 
 ---
 
@@ -221,7 +223,90 @@ Press et al.，2022-10-07 提交，与 ReAct 几乎同时（ReAct 是 2022-10-06
 
 **把 Self-Ask 和 ReAct 并排看是本份调研里最有信息量的一组对照。** 两者都是 2022 年 10 月、都在测多跳问答、都要接外部知识、都在说 CoT 不够。差别在**谁决定检索**：Self-Ask 用固定结构的提示词槽位（模型必须发问，搜索引擎固定回答），ReAct 把检索做成动作空间里的合法动作（模型自己决定搜什么、搜几次、什么时候改用 lookup）。前者是结构化模板，后者是自由动作空间加推理痕迹。后来的 agent 选了后者。
 
-### 2.6 PAL —— 把计算外包（arXiv:2211.10435）
+### 2.6 Zero-shot CoT —— 「Let's think step by step」的出处（arXiv:2205.11916）
+
+Kojima et al.，2022-05-21 提交，v4 于 2023-03-14（[摘要页](https://arxiv.org/abs/2205.11916)）。下面为正文核对（`docs/ref/2205.11916v4.pdf`）。
+
+**它的位置**：ReAct 的 Related Work 把推理线列为「CoT → least-to-most / zero-shot-CoT / self-consistency」，这是最后一篇。
+
+**机制是两阶段的，而这一点常被忽略。** 不是往问题上加一句就完事，而是要问模型两次：
+
+1. **推理抽取**：把问题拼成 `Q: [X]. A: [T]`，`[T]` 是触发句（如 `Let's think step by step.`），得到推理文本 `z`
+2. **答案抽取**：把 `[X0] [Z] [A]` 拼回去，`[A]` 是第二种触发句（数学题用 `Therefore, the answer (arabic numerals) is`，选择题用 `Therefore, among A through E, the answer is`），再问一次拿到最终答案
+
+论文自己点明了代价：
+
+> 「Few-shot-CoT requires careful human engineering of a few prompt examples with specific answer formats per task, while **Zero-shot-CoT requires less engineering but requires prompting LLMs twice.**」
+
+**这是一次明确的交换：用两次调用换掉示例工程。** 对 harness 设计的直接含义——**「零样本」不等于「零成本」，它把成本从人写示例挪到了 API 调用次数上。**
+
+**主结果（text-davinci-002）**：
+
+| 任务 | Zero-shot | Zero-shot-CoT | 对比 |
+|---|---|---|---|
+| MultiArith | 17.7 | **78.7** | 翻四倍 |
+| GSM8K | 10.4 | **40.7** | 翻四倍 |
+| AQUA | 22.4 | 33.5 | +11.1 |
+| SVAMP | 58.8 | 62.1 | +3.3 |
+| SingleEq | 74.6 | 78.0 | +3.4 |
+| AddSub | 72.2 | **69.6** | **−2.6** |
+| CommonsenseQA | 68.8 | **64.6** | **−4.2** |
+| StrategyQA | 12.7 | 54.8 | +42.1 |
+| Date Understanding | 49.3 | 67.5 | +18.2 |
+| Shuffled Objects | 31.3 | 52.4 | +20.9 |
+| Last Letter (4 words) | 0.2 | **57.6** | 从零起步 |
+| Coin Flip (4 times) | 12.8 | **91.4** | +78.6 |
+
+**三个必须一起读的限定条件**：
+
+1. **单步任务没有收益，甚至更差。** SingleEq（只需一步）几乎不动；AddSub 掉了 2.6。论文的解释是「expected since they do not require multi-step reasoning」——**这个提示词买的是多步推理，买不到别的。**
+2. **常识任务上它不涨，甚至有害。** CommonsenseQA 68.8 → 64.6。论文承认「Zero-shot-CoT does not provide performance gains」于常识推理。
+3. **它打不过 few-shot CoT。** MultiArith 78.7 vs 8-shot CoT 93.0；GSM8K 40.7 vs 48.7。**论文的贡献是「零样本能到什么水平」，不是「超过 few-shot」。**
+
+**但有一组数字很强**：GSM8K 上 Zero-shot-CoT 的 40.7 **超过微调过的 GPT-3 175B（33）**，接近「微调 + verifier」（55）。在 PaLM 540B 上配上 Self-Consistency 达到 **70.1**，超过 few-shot CoT + SC 的 74.4 只差 4 个点。
+
+#### 提示措辞的敏感度：一个对写系统提示很直接的实验
+
+论文在 MultiArith 上测了 **16 种触发句**，分三类（instructive / misleading / irrelevant）：
+
+| # | 类别 | 触发句 | 准确率 |
+|---|---|---|---|
+| 1 | instructive | `Let's think step by step.` | **78.7** |
+| 2 | instructive | `First,` ← **SayCan 用的就是这句** | **77.3** |
+| 3 | instructive | `Let's think about this logically.` | 74.5 |
+| 4 | instructive | `Let's solve this problem by splitting it into steps.` | 72.2 |
+| 5 | instructive | `Let's be realistic and think step by step.` | 70.8 |
+| 6 | instructive | `Let's think like a detective step by step.` | 70.3 |
+| 7 | instructive | `Let's think` | 57.5 |
+| 8 | instructive | `Before we dive into the answer,` | 55.7 |
+| 9 | instructive | `The answer is after the proof.` | 45.7 |
+| 10 | misleading | `Don't think. Just feel.` | 18.8 |
+| 11 | misleading | `Let's think step by step but reach an incorrect answer.` | 18.7 |
+| 13 | misleading | `By using the fact that the earth is round,` | **9.3** |
+| 15 | irrelevant | `Abrakadabra!` | 15.5 |
+| — | — | （Zero-shot 基线） | 17.7 |
+
+**读法**：
+
+- **最好与最差相差 69.4 个百分点**（78.7 vs 9.3）
+- **instructive 内部也差 33 个点**（78.7 vs 45.7）——「鼓励思考」不足以描述什么有效
+- **misleading / irrelevant 全部落在基线 17.7 附近或更低**。其中第 11 条最刺眼：`Let's think step by step but reach an incorrect answer.` 得 18.7，和什么都不加几乎一样。**模型把「step by step」这个模式认出来了，但被后半句的意图带偏，于是收益归零**
+- 第 13 条 9.3 **低于基线**——一句听起来像在讲道理的话，比不加提示更糟
+
+论文自陈这仍是开放问题：「It remains an open question how to automatically create better templates」。
+
+#### 与 SayCan 的交叉：两条线不是完全独立的
+
+Table 4 的脚注 (*1) 写明：`First,` 这个模板「is used in **Ahn et al. [2022]** where a language model is prompted to generate step-by-step actions given a high-level instruction for controlling robotic actions」——**就是 SayCan**。
+
+这有两个含义：
+
+1. **SayCan 用的是 Zero-shot CoT 的第二名触发句**（77.3%）。动作线在系统提示里的那句 `First,`，血缘在推理线的提示工程研究里。
+2. **Zero-shot CoT 顺手给 SayCan 的提示词做了定量评估**——这是 reasoning 线替 agent 线做的对照实验。
+
+**所以第 4 节开头那句「两条线分头演进」需要修正**：它们在**概念**上分头走（一边修推理、一边修动作），但在**提示工程的细节**上是互相借用的。这个交叉只有把两篇放在一起读才看得见。
+
+### 2.7 PAL —— 把计算外包（arXiv:2211.10435）
 
 Gao et al.，2022-11-18 提交（[摘要页](https://arxiv.org/abs/2211.10435)），晚于 ReAct 一个月。
 
@@ -264,6 +349,10 @@ Schick et al.，2023-02-09 提交，单版本（[摘要页](https://arxiv.org/ab
 ---
 
 ## 4. 网页智能体与具身动作线
+
+**一条需要更正的框架**：本文最初把推理线与动作线描述为「分头演进」。概念上确实如此——一边修推理、一边修动作。但 §2.6 发现了一个具体交叉：**SayCan 提示词里的 `First,` 与「Let's think step by step」同出一张表**，后者来自推理线的提示工程研究，前者被 SayCan 用来驱动机器人规划（[2205.11916](https://arxiv.org/abs/2205.11916) Table 4 脚注 (*1)）。
+
+所以准确的说法是：**两条线在概念上分头走，在提示工程的细节上互相借用。** 这个交叉只有把两篇放在一起读才看得见——只读 ReAct 看不到，只读 SayCan 也看不到。
 
 ### 4.1 WebGPT（arXiv:2112.09332）
 
@@ -501,6 +590,9 @@ ReAct 的立场是第 2 条，而且是被低估的设计选择：**把错误变
 | 只在任务开始时识别一次场景 | Inner Monologue | 开环变体（「similar to the system demonstrated in [19]」）弱于持续注入反馈 | 同上 |
 | 把反馈放进上下文就以为模型会用 | Inner Monologue 的失败模式 | 「we found that the LLM planners **ignored the environment feedback** and still proposed policy skills involving objects not present in the scene」 | 同上 |
 | 让模型自己选解码方式（贪心） | CoT → Self-Consistency | 涌现只在约 100B 以上成立；小模型生成 fluent but illogical 的链 | [2201.11903](https://arxiv.org/abs/2201.11903) |
+| 用「鼓励思考」的措辞就以为够了 | Zero-shot CoT | 16 种触发句里 instructive 内部也差 33 个点；misleading 的 `Let's think step by step but reach an incorrect answer.` 收益归零 | [2205.11916](https://arxiv.org/abs/2205.11916) |
+| 把中间推理当免费 | Zero-shot CoT | 零样本省掉了示例工程，代价是要问两次 | 同上 |
+| 单步任务也用 CoT | Zero-shot CoT | SingleEq 几乎不动、AddSub −2.6：该提示买的是多步推理 | 同上 |
 
 ---
 
@@ -511,6 +603,8 @@ ReAct 的立场是第 2 条，而且是被低估的设计选择：**把错误变
 3. **循环的退出条件需要一个非模型来源。** ReAct 用的是步数阈值（7 / 5），而 AutoGPT 的失败机制第 1 条正是「没有非模型意见的终止信号」。阈值是廉价但有效的答案，值得在阶段一就写死一个可调参数。
 4. **`read_file` 之外，第一阶段值得再想一个「会失败」的工具。** ReAct 的 23% 失败归因全部来自搜索无效，而它把失败当 observation 回灌。Herald 如果第一版工具只有只读且几乎不失败的 `read_file`，就练不到「工具失败后模型如何恢复」这段语义——那恰恰是 agent 循环最有价值的部分。
 5. **工具校验的位置要早做决定。** SayCan 的教训是：约束动作可行性的机制决定了你要付出什么代价（学出来的会漏判、写出来的不会泛化）。Herald 选写出规则，那就接受「只能拦住规则内的」，并且把规则外的情况当 observation 回灌而不是当异常抛出。
+6. **提示措辞的收益不是「有没有鼓励思考」的二值，而是一个连续且范围极宽的变量。** Zero-shot CoT 的 16 种触发句里，最好 78.7、最差 9.3（基线 17.7）；同为「鼓励思考」的措辞也能差 33 个点。**含义是：系统提示里那些看起来"意思差不多"的句子，不能凭感觉替换。** Herald 的系统提示装配（阶段三）需要一套能对比措辞的评测夹具，否则每次改写都是在赌。这条与 §2.6 的实验设计一并看。
+7. **「零样本」要算调用次数账。** Zero-shot CoT 是两次调用（推理抽取 + 答案抽取），论文自己把它与 few-shot 的示例工程做了明确交换。Herald 做上下文成本估算（阶段三）时，提示模板的调用次数与 token 数要一起算，别只看上下文长度。
 
 ---
 
@@ -527,13 +621,13 @@ ReAct 的立场是第 2 条，而且是被低估的设计选择：**把错误变
 
 ### 证据层级（2026-09-21 更新后）
 
-已核对 PDF 正文的六篇（在 `docs/ref/`）：ReAct v3、SayCan v2、WebGPT v3、CoT v6、Self-Consistency v4、Inner Monologue v1。
+已核对 PDF 正文的七篇（在 `docs/ref/`）：ReAct v3、SayCan v2、WebGPT v3、CoT v6、Self-Consistency v4、Inner Monologue v1、Zero-shot CoT v4。
 
 仍只有 arXiv 摘要页的：Scratchpads、Least-to-Most、Self-Ask、PAL、RAG、Toolformer、MRKL、GSM8K。
 
-也就是说：**继承关系（第 1 节）与四个最关键的正文细节（SayCan 公式与消融、WebGPT 动作空间与记忆模型、Self-Consistency 采样参数、Inner Monologue 反馈分类与实验数字）已是正文级；其余各篇的定量结果仍是摘要级。**
+也就是说：**继承关系（第 1 节）与五个最关键的正文细节（SayCan 公式与消融、WebGPT 动作空间与记忆模型、Self-Consistency 采样参数、Inner Monologue 反馈分类与实验数字、Zero-shot CoT 提示措辞消融）已是正文级；其余各篇的定量结果仍是摘要级。**
 
-### 初版的五处修正
+### 初版的六处修正
 
 | 初版断言 | 修正后 | 成因 |
 |---|---|---|
@@ -542,8 +636,9 @@ ReAct 的立场是第 2 条，而且是被低估的设计选择：**把错误变
 | 「WebGPT 的动作空间完整清单未确认」 | **已补**：十种命令 + 每步全新 context | 读到 PDF 正文 |
 | 「CoT-SC：采样 21 条、temperature 0.7」 | **半错**：21 条是 ReAct 自设的算力折中，Self-Consistency 原文默认 40 条 | 把 ReAct 的参数记到了 Self-Consistency 头上 |
 | 转述 ReAct 对 IM 的概括，未加保留 | **已改为揭示其不完整**：IM 有 LLM 主动提问的第三类反馈，ReAct 只描述了被动那一半 | 直接采信了一手来源里的**转述**，未回被转述方原文核对 |
+| 「推理线与行动线分头演进」（标题与 §4） | **已限定**：概念上分头，提示工程细节上互相借用（SayCan 用 `First,`，出处是 Zero-shot CoT 的表 4） | 按线索分章写作，天然看不见跨线的具体交叉 |
 
-最后一条与前四条性质不同：前四条是我自己出错，这一条是 **ReAct 对 IM 的概括本身有偏，我照抄了**。教训是——**论文里「X 方法的局限是……」这类转述，必须回 X 的原文核一遍再用。** 引语逐字无误，不代表引语描述的事实无误。
+最后两条与前四条性质不同：前四条是事实性错误，后两条是**框架性局限**——引语逐字无误，但组织方式让我看不见某些东西。转述要回原文核；**分章写作要专门留一步做跨线对照**，否则线索越清晰，盲区越固定。
 
 ### 仍然未确认的条目
 
@@ -553,15 +648,16 @@ ReAct 的立场是第 2 条，而且是被低估的设计选择：**把错误变
 | Toolformer / Scratchpads / MRKL 的发表会议 | 未确认 | 各自 arXiv 页面无 Comments 字段，PDF 未取得 |
 | RAG / Least-to-Most / PAL / Self-Ask 的具体分数 | **仅摘要级** | 只写了摘要里明确的数字，未从正文补（Self-Consistency 已升为正文级） |
 | SayCan v2 所加 CoT 研究的具体结论 | 未确认 | 只从 Comments 字段得知「Added study about ... chain of thought prompting」，未读该小节 |
-| 零样本 CoT 的内容 | **编号已确认，内容未调研** | ReAct 文献表确认为 Kojima et al., arXiv:2205.11916；本篇未展开它 |
+| **Zero-shot CoT 在 PaLM 540B 上的完整结果** | **部分** | 只写了 GSM8K 与 MultiArith 两行的正文数字，未展开论文所有任务 |
 | 各篇代码仓库可达性 | 未检查 | 未逐个访问项目页 |
 
 ### 建议下一步
 
-要继续提高证据层级，按价值排序需要：
+推理线与行动线各自的一手材料已基本齐（剩 RAG、Least-to-Most、Self-Ask、PAL 仍是摘要级）。按价值排序：
 
-1. **arXiv:2005.11401**（RAG）——RAG-Sequence / RAG-Token 术语与两种形式的实际差别
-2. **arXiv:2205.11916**（Zero-shot CoT）——补上推理线最后一个成员
-3. **arXiv:2205.10625**（Least-to-Most）——两阶段提示的具体构造
-4. **arXiv:2207.01206**（WebShop）——ReAct 的两个决策任务基准之一，ReAct 论文引用它但本篇未展开
-5. **Toolformer / Scratchpads / MRKL** 的发表信息——只能从会议官网或 OpenReview 查，arXiv 页面没有
+1. **arXiv:2005.11401**（RAG）——RAG-Sequence / RAG-Token 术语与两种形式的实际差别；这是「检索由谁发起」那节的另一半
+2. **arXiv:2205.10625**（Least-to-Most）——两阶段提示的具体构造，可与 Zero-shot CoT 的两阶段做对照（两者都是两次调用，但目的不同）
+3. **arXiv:2207.01206**（WebShop）——ReAct 的两个决策任务基准之一，ReAct 引用了但本篇未展开
+4. **Toolformer / Scratchpads / MRKL** 的发表信息——只能从会议官网或 OpenReview 查，arXiv 页面没有
+
+**另一个方向**：证据已够，但本文还没有任何「设计讨论」类产出。第 7 节的 7 条含义可以拿一两条出来，在 [`docs/decisions/`](../decisions/) 里落成正式的决策记录（问题 / 所选方案 / 否决的方案 / 代价），特别是第 2 条（消息数组要保留思考与行动的区分）和第 5 条（工具校验的位置）。
