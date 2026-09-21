@@ -200,7 +200,23 @@ Karpathy 在 2023-04-02 把跑偏归因于**有限的上下文窗口**。
 
 ## 11. 未验证与待补
 
-- **前史（ReAct 继承了什么）已由 [`react-prehistory.md`](react-prehistory.md) 补上**（2026-09-21）。该文覆盖 CoT、Self-Consistency、Least-to-Most、Self-Ask、RAG、Toolformer、WebGPT、SayCan、Inner Monologue、MRKL，并从 ReAct 正文的 Related Work 落实了直接继承关系。本文不再展开。
+> **本文的证据层级低于 [`react-prehistory.md`](react-prehistory.md)，逐节说明如下**（2026-09-21 补记）。
+>
+> **已是 PDF 正文级**：§2 的数字表、§3 的消融表、§4 的作者局限、§9 关于 ReAct 自身的判断——这些在写本文时取自 ReAct v3 正文，且 `prehistory.md` 又独立核过一遍；`docs/ref/2210.03629v3.pdf` 在本地，可随时回查。
+>
+> **仍是二手或未验证**：
+>
+> - **§1** 的「发表 ICLR 2023，poster」——arXiv 页面对 ReAct 只确认「v3 is the ICLR camera ready version」，poster 形式与具体场次未见一手来源。
+> - **§5** 整节。Verma et al. 批评的条目（arXiv:2405.13966、TMLR 归属、跨 6 类问题 14 种提示变体、四款模型）读的是摘要与二手转述，**未取全文**。其中「后以《Do Think Tags Really Help LLMs Plan?》发表于 TMLR」在正文里是当事实写的，实际只有搜索覆盖。
+> - **§6** 的 LangChain 代码片段——未取官方仓库源码逐字比对。**§10** 的「Agent = Model + Harness」与「LangChain 2026 年的文档」同样未取官方文档原文。
+> - **§7** 的 AutoGPT 成本数据（$0.288/步、约 $14.40/任务，来自 Jina AI 的二手分析）、AutoGPT / BabyAGI 的日期与仓库细节。
+> - **§8** 的 OpenAI 时间线（见下）。
+>
+> **`prehistory.md` 用七篇 PDF 复核过 CoT / Self-Consistency / WebGPT / SayCan / Inner Monologue / Zero-shot CoT 六篇，本文对这几篇的描述已随之校正；但本文引用的非论文材料（官方博客、仓库、二手分析）没有第二来源可对。**
+>
+> **`prehistory.md` 用七篇 PDF 复核过 CoT / Self-Consistency / WebGPT / SayCan / Inner Monologue / Zero-shot CoT 六篇，本文对这几篇的描述已随之校正；但本文引用的非论文材料（官方博客、仓库、二手分析）没有第二来源可对。**
+
+- **前史（ReAct 继承了什么）已由 [`react-prehistory.md`](react-prehistory.md) 补上**（2026-09-21）。该文覆盖 CoT、Self-Consistency、Least-to-Most、Self-Ask、RAG、Toolformer、WebGPT、SayCan、Inner Monologue、MRKL、Zero-shot CoT，并从 ReAct v3 的参考文献表逐条核实了引用关系。本文不再展开。
 - OpenAI 函数调用与 DevDay 的官方页面（openai.com）在调研环境中不可达，时间与内容来自搜索覆盖，未读原文。
 - Codex CLI 的内部循环结构、Cursor / Composer 的内部实现、社区流传的 Claude Code"主循环"逆向分析，均**未获验证**，本文刻意不引用其具体细节。
 - AutoGPT / BabyAGI 的仓库与提示文件不可达，"AutoGPT 不是严格意义的 ReAct"这一判断来自二手描述。
