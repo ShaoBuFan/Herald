@@ -5,6 +5,11 @@
 *.pem
 *.key
 
+# ---- AI 工具状态（会话记录、临时计划等，非项目源码）----
+.zcode/
+.claude/
+.codex/
+
 # ---- Python ----
 __pycache__/
 *.py[cod]
