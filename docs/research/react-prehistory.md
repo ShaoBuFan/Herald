@@ -29,7 +29,7 @@
 2. **ReAct 明确承认 Inner Monologue 是最接近的前作**，并且把差别定义在「思考的自由度与稀疏性」上——不是有没有思考，而是思考受不受限。这一点决定了后来所有 agent 的 thinking 通道设计。
 3. **WebGPT → ReAct 的分叉不在「训练 vs 提示」这个表面标签上，而在动作空间的复杂度。** WebGPT 要训，是因为它的动作空间大（浏览、引用、作答）且需要人类偏好信号；ReAct 敢只提示，是因为在知识密集任务上它把动作空间压到三个（`search` / `lookup` / `finish`）。ReAct 自己用一句话点破了这层关系。
 4. **ReAct 的微调实验比它的提示实验更值得记。** 3000 条自举轨迹微调后，8B 微调 ReAct 打得过所有 62B 提示方法。这是「工具使用属于权重，不属于提示」这条判词在 ReAct 论文内部的证据——而 [`react-lineage.md`](react-lineage.md) 目前把它归给了 2023-06 之后的原生函数调用。
-5. **Self-Consistency 那条路在 agent 里断了。** CoT-SC 要把同一条问题采样 21 次投票；agent 每步都有副作用，采样 21 条带副作用的轨迹在语义上就不成立。ReAct 只在「无副作用的推理」这一侧借用 CoT-SC，动作侧永远只跑一条。
+5. **Self-Consistency 那条路在 agent 里断了。** CoT-SC 要把同一条问题采样几十条路径投票（论文默认 40 条）；agent 每步都有副作用，采样几十条带副作用的轨迹在语义上就不成立。ReAct 只在「无副作用的推理」这一侧借用 CoT-SC，动作侧永远只跑一条。
 6. **LLM 与世界接地缺一不可，SayCan 的消融把这件事量了出来。** 去掉 LLM，规划成功率 **0%**；去掉世界接地，84% → **67%**。这直接对应今天 harness 的两半——模型负责「做什么有意义」，工具与环境负责「什么是真的」。只优化其中一半都是白费。
 
 ---
@@ -173,9 +173,31 @@ Wang et al.，2022-03-21 提交，ICLR 2023（[摘要页](https://arxiv.org/abs/
 | StrategyQA | +6.4% |
 | ARC-challenge | +3.9% |
 
-ReAct 里对应的是 CoT-SC 基线：**采样 21 条、temperature 0.7、取多数答案**（ReAct Section 3.2）。
+**采样参数（正文核对，`docs/ref/2203.11171v4.pdf` Section 3.1）**：
 
-**为什么 agent 循环里没有内建多数投票，这是本文最值得想的问题。** 一个直接原因是副作用：CoT-SC 的 21 条路径互相独立、可丢弃，而 agent 的每一步都可能改世界。采样 21 条带写操作轨迹，要么全部回滚（需要事务语义），要么只对只读推理侧投票。ReAct 选了后者——它的两个混合策略（ReAct→CoT-SC、CoT-SC→ReAct）都只在**没有副作用的推理**上使用采样与投票，动作侧永远只跑一条轨迹。
+> 「for UL2-20B and LaMDA-137B we applied temperature sampling with **T = 0.5** and truncated at the top-k (**k = 40**)... for PaLM-540B we applied **T = 0.7, k = 40**, and for GPT-3 we use **T = 0.7 without top-k truncation**」
+
+主结果的口径是 **10 次运行、每次独立采样 40 条输出**（Section 3.2：「averaged over 10 runs, where we sampled **40 outputs** independently from the decoder in each run」）。
+
+**修正**：初版本文写「ReAct 里对应的是 CoT-SC 基线：采样 21 条、temperature 0.7」。这个 **21 条是 ReAct 自己为节省算力设的**（ReAct §3.2），**不是 Self-Consistency 论文的设置**，原文是 40 条。写成本文时我把它当成了后者，属于把 A 论文的参数记到 B 论文头上。
+
+据 Self-Consistency 自己的消融（Figure 2，采样数取 1/5/10/20/40），**采样数越多越好，但边际收益递减**——所以 ReAct 用 21 条而非 40 条是合理的折中，只是这个折中是 ReAct 做的，不是原论文的默认。
+
+**一块值得单独记的发现（Section 3.3）**：Self-Consistency 不只是「在 CoT 之上再加分」，它还能**救回 CoT 反而有害的那些任务**。原文：
+
+> 「For some tasks (e.g., ANLI-R1, e-SNLI, RTE), adding chain-of-thought **does hurt performance** compared to standard prompting, but self-consistency is able to robustly boost the performance and **outperform standard prompting**」
+
+| 任务 | Standard | CoT | Self-Consistency |
+|---|---|---|---|
+| ANLI-R1 | 69.1 | 68.8 | **78.5** |
+| e-SNLI | 85.8 | 81.0 | **88.4** |
+| RTE | 84.8 | 79.1 | **86.3** |
+
+**这张表的意义**：CoT 的「有时反而更差」不是可以绕过的边角问题，而 Self-Consistency 对它有效。这与 ReAct 那条批评（CoT 是 static black box）不冲突——Self-Consistency 修的是**采样的随机性**，不是**缺少环境接地**。两类缺陷，两种修法。
+
+顺带一处交叉印证：该表里 HotpotQA 的 CoT-prompting 是 **28.9 EM**，Self-Consistency **33.8 EM**，而 ReAct 论文表 1 的 CoT 是 **29.4**、CoT-SC 是 **33.4**。两篇论文数字接近但不等，因为 ReAct 用的是 21 条采样而非 40 条，且复现口径不同。**引用这两个数字时不要混用。**
+
+**为什么 agent 循环里没有内建多数投票，这是本文最值得想的问题。** 一个直接原因是副作用：CoT-SC 的几十条路径互相独立、可丢弃，而 agent 的每一步都可能改世界。采样几十条带写操作轨迹，要么全部回滚（需要事务语义），要么只对只读推理侧投票。ReAct 选了后者——它的两个混合策略（ReAct→CoT-SC、CoT-SC→ReAct）都只在**没有副作用的推理**上使用采样与投票，动作侧永远只跑一条轨迹。
 
 ### 2.4 Least-to-Most —— 分解但不改变循环（arXiv:2205.10625）
 
@@ -422,19 +444,20 @@ ReAct 的立场是第 2 条，而且是被低估的设计选择：**把错误变
 
 ### 证据层级（2026-09-21 更新后）
 
-已核对 PDF 正文的四篇（在 `docs/ref/`）：ReAct v3、SayCan v2、WebGPT v3、CoT v6。
+已核对 PDF 正文的五篇（在 `docs/ref/`）：ReAct v3、SayCan v2、WebGPT v3、CoT v6、Self-Consistency v4。
 
-仍只有 arXiv 摘要页的：Scratchpads、Self-Consistency、Least-to-Most、Self-Ask、PAL、RAG、Toolformer、Inner Monologue、MRKL、GSM8K。
+仍只有 arXiv 摘要页的：Scratchpads、Least-to-Most、Self-Ask、PAL、RAG、Toolformer、Inner Monologue、MRKL、GSM8K。
 
-也就是说：**继承关系（第 1 节）与两处最关键的公式/消融（SayCan、WebGPT）已是正文级；其余各篇的定量结果仍是摘要级。**
+也就是说：**继承关系（第 1 节）与三个最关键的正文细节（SayCan 公式与消融、WebGPT 动作空间与记忆模型、Self-Consistency 采样参数）已是正文级；其余各篇的定量结果仍是摘要级。**
 
-### 初版的三处修正
+### 初版的四处修正
 
 | 初版断言 | 修正后 | 成因 |
 |---|---|---|
 | 「Scratchpads…ReAct 未引」 | **错。确认被引** | 从 ar5iv 抓取截断推出「不存在」——不该做的推断 |
 | 「SayCan 的精确打分公式未确认」 | **已补**：`π = arg max p(c_π\|s,ℓ_π)·p(ℓ_π\|i)` | 读到 PDF 正文 |
 | 「WebGPT 的动作空间完整清单未确认」 | **已补**：十种命令 + 每步全新 context | 读到 PDF 正文 |
+| 「CoT-SC：采样 21 条、temperature 0.7」 | **半错**：21 条是 ReAct 自设的算力折中，Self-Consistency 原文默认 40 条 | 把 ReAct 的参数记到了 Self-Consistency 头上 |
 
 ### 仍然未确认的条目
 
@@ -442,8 +465,7 @@ ReAct 的立场是第 2 条，而且是被低估的设计选择：**把错误变
 |---|---|---|
 | CoT 的正式发表会议 | **未确认** | arXiv 2201.11903 的 v1–v6 页面 Comments 字段均无发表信息；PDF 版本页眉为「Published as a conference paper at ICLR 2023」但那只存在于 ReAct 的 PDF。CoT v6 的首页信息未逐字核对，故仍不写会议 |
 | Toolformer / Scratchpads / MRKL 的发表会议 | 未确认 | 各自 arXiv 页面无 Comments 字段，PDF 未取得 |
-| RAG 的 RAG-Sequence / RAG-Token 命名 | **仅摘要级** | 摘要描述了两种形式但未给这两个术语名，术语名来自社区通行叫法，未经原文确认 |
-| RAG / Self-Consistency / Least-to-Most / PAL / Self-Ask 的具体分数 | **仅摘要级** | 只写了摘要里明确的数字，未从正文补 |
+| RAG / Least-to-Most / PAL / Self-Ask 的具体分数 | **仅摘要级** | 只写了摘要里明确的数字，未从正文补（Self-Consistency 已升为正文级） |
 | SayCan v2 所加 CoT 研究的具体结论 | 未确认 | 只从 Comments 字段得知「Added study about ... chain of thought prompting」，未读该小节 |
 | 零样本 CoT 的内容 | **编号已确认，内容未调研** | ReAct 文献表确认为 Kojima et al., arXiv:2205.11916；本篇未展开它 |
 | 各篇代码仓库可达性 | 未检查 | 未逐个访问项目页 |
@@ -452,8 +474,8 @@ ReAct 的立场是第 2 条，而且是被低估的设计选择：**把错误变
 
 要继续提高证据层级，按价值排序需要：
 
-1. **arXiv:2203.11171**（Self-Consistency）——「采样 21 条、temperature 0.7」的出处。本篇这一设置是从 **ReAct 的基线描述**读到的，不是 Self-Consistency 原文
-2. **arXiv:2005.11401**（RAG）——RAG-Sequence / RAG-Token 术语与两种形式的实际差别
-3. **arXiv:2205.11916**（Zero-shot CoT）——补上推理线最后一个成员
-4. **arXiv:2205.10625**（Least-to-Most）——两阶段提示的具体构造
+1. **arXiv:2005.11401**（RAG）——RAG-Sequence / RAG-Token 术语与两种形式的实际差别
+2. **arXiv:2205.11916**（Zero-shot CoT）——补上推理线最后一个成员
+3. **arXiv:2205.10625**（Least-to-Most）——两阶段提示的具体构造
+4. **arXiv:2207.05608**（Inner Monologue）——本篇对它只有摘要级认识，而它是 ReAct 自己承认的最近前作
 5. **Toolformer / Scratchpads / MRKL** 的发表信息——只能从会议官网或 OpenReview 查，arXiv 页面没有

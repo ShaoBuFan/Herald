@@ -12,6 +12,7 @@
 | `2204.01691v2.pdf` | Do As I Can, Not As I Say: Grounding Language in Robotic Affordances (SayCan) | v2（2022-08-16） | https://arxiv.org/abs/2204.01691v2 | [`react-prehistory.md`](../research/react-prehistory.md) §4.2、§5.3 |
 | `2112.09332v3.pdf` | WebGPT: Browser-assisted question-answering with human feedback | v3（2022-06-01） | https://arxiv.org/abs/2112.09332v3 | [`react-prehistory.md`](../research/react-prehistory.md) §4.1、§5.1 |
 | `2201.11903v6.pdf` | Chain-of-Thought Prompting Elicits Reasoning in Large Language Models | v6（2023-01-10） | https://arxiv.org/abs/2201.11903v6 | [`react-prehistory.md`](../research/react-prehistory.md) §2.2 |
+| `2203.11171v4.pdf` | Self-Consistency Improves Chain of Thought Reasoning in Language Models | v4（ICLR 2023 camera ready，2023-03-07） | https://arxiv.org/abs/2203.11171v4 | [`react-prehistory.md`](../research/react-prehistory.md) §2.3、§6 |
 
 ## 为什么固定版本号
 
@@ -25,6 +26,7 @@ curl.exe -LO https://arxiv.org/pdf/2210.03629v3
 curl.exe -LO https://arxiv.org/pdf/2204.01691v2
 curl.exe -LO https://arxiv.org/pdf/2112.09332v3
 curl.exe -LO https://arxiv.org/pdf/2201.11903v6
+curl.exe -LO https://arxiv.org/pdf/2203.11171v4
 ```
 
 ## 提取正文的文本
