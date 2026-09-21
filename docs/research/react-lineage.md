@@ -2,6 +2,8 @@
 
 调研日期：2026-09-21。本文所有事实性陈述尽量标注出处；无法验证的部分单列在末尾。
 
+> **前传**：[`react-prehistory.md`](react-prehistory.md) 补上了本文第 11 节留下的前史缺口——ReAct 从推理线（CoT / Self-Consistency / Least-to-Most）与行动线（WebGPT / SayCan / Inner Monologue / RAG）各继承了什么、否决了什么。两文分工见该文第 8 节。
+
 ---
 
 ## 1. 基本事实
@@ -198,7 +200,7 @@ Karpathy 在 2023-04-02 把跑偏归因于**有限的上下文窗口**。
 
 ## 11. 未验证与待补
 
-- **前史（ReAct 继承了什么）未完成调研。** "推理"线（Chain-of-Thought、Self-Consistency、Least-to-Most）与"行动"线（WebGPT、SayCan、RAG）的原始出处与继承关系尚未取得一手材料，本文因此没有展开。
+- **前史（ReAct 继承了什么）已由 [`react-prehistory.md`](react-prehistory.md) 补上**（2026-09-21）。该文覆盖 CoT、Self-Consistency、Least-to-Most、Self-Ask、RAG、Toolformer、WebGPT、SayCan、Inner Monologue、MRKL，并从 ReAct 正文的 Related Work 落实了直接继承关系。本文不再展开。
 - OpenAI 函数调用与 DevDay 的官方页面（openai.com）在调研环境中不可达，时间与内容来自搜索覆盖，未读原文。
 - Codex CLI 的内部循环结构、Cursor / Composer 的内部实现、社区流传的 Claude Code"主循环"逆向分析，均**未获验证**，本文刻意不引用其具体细节。
 - AutoGPT / BabyAGI 的仓库与提示文件不可达，"AutoGPT 不是严格意义的 ReAct"这一判断来自二手描述。
