@@ -18,55 +18,89 @@
 
 **怎么用这张表**：想判断「谁影响了谁」时，**用原始提交日期**（图的横轴）；引用边只说明**在我手上这个版本里**它们互相可见。CoT 引 SayCan 不代表 2022 年 1 月的 CoT 作者知道 SayCan，只代表 2023 年 1 月的修订版提到了它。
 
-## 1. 依赖图（按原始提交时间排列）
+## 1. 依赖图
 
-```
-                                                                     2020-05  RAG ────────┐
-                                                                                          │
-    2021-10  GSM8K ───────────────────────────┐                                           │
-                                              │                                           │
-    2021-11  Scratchpads ─────┐               │                                           │
-                              │               │                                           │
-    2021-12  WebGPT ──────────┼───────────────┼───────────────────────┐                   │
-                              │               │                       │                   │
-    2022-01  CoT ◄────────────┤               │                       │                   │
-              │               │               │                       │                   │
-    2022-03  Self-Consistency ◄┘               │                       │                   │
-              │   │                           │                       │                   │
-    2022-04  SayCan ◄──────────┬───────────────┼───────────────────────┤                   │
-              │  │            │               │                       │                   │
-    2022-05  Zero-shot CoT ◄──┘│               │                       │                   │
-              │               │               │                       │                   │
-    2022-05  Least-to-Most     │               │                       │                   │
-              │               │               │                       │                   │
-    2022-05  MRKL              │               │                       │                   │
-                              │               │                       │                   │
-    2022-07  Inner Monologue ◄┴───────────────┘                       │                   │
-                              │                                       │                   │
-    2022-10  Self-Ask         │                                       │                   │
-                              │                                       │                   │
-    2022-10  ReAct ◄──────────┴───────────────────────────────────────┘                   │
-              │                                                                           │
-    2022-11  PAL                                                                          │
-                                                                                          │
-    2023-02  Toolformer ◄─────────────────────────────────────────────────────────────────┘
-```
+**先说明形式**：初版这里画的是一张 ASCII 折线图，但它有线条画了而表格没列的地方——ASCII 图的对齐靠手工数空格，改一次就可能骗人。所以改成两张表：**时间轴**告诉你每篇出现时能看见谁，**引用矩阵**给出每条边。要可视化的话文末有 Mermaid 片段，可以在 Git 预览里渲染。
 
-箭头 = **被指向者引用了起点**（`A ◄── B` 读作「B 引用 A」）。直角折线是跨行连线，避免交叉。
+### 1.1 时间轴（按原始提交日期）
 
-### 已核实的引用边（从 PDF 参考文献表逐条确认）
-
-| 引用方 | 引用了 | 证据 |
+| 提交 | 论文 | 它在这个时点能看见的、同一网络里的论文 |
 |---|---|---|
-| CoT | Scratchpads、Self-Consistency、SayCan、GSM8K | 参考文献表条目 |
-| WebGPT | RAG | 参考文献表条目 |
-| Self-Consistency | CoT、Zero-shot CoT、GSM8K | 参考文献表条目 |
-| SayCan | CoT | 正文引作 `Chain of Thought Prompting [24]` |
-| Zero-shot CoT | CoT、Self-Consistency、Scratchpads、SayCan、GSM8K | 参考文献表条目 |
-| Inner Monologue | CoT `[10]`、Scratchpads、SayCan `[21]`、GSM8K | 编号引用 |
-| ReAct | CoT、Self-Consistency、Least-to-Most、Zero-shot CoT、Scratchpads、WebGPT、SayCan、Inner Monologue、GSM8K | 上一篇文档已逐条核对 |
+| 2020-05-22 | RAG | — |
+| 2021-10-27 | GSM8K | — |
+| 2021-11-30 | Scratchpads | — |
+| 2021-12-17 | WebGPT | RAG |
+| 2022-01-28 | **CoT** | Scratchpads、WebGPT、GSM8K |
+| 2022-03-21 | Self-Consistency | CoT、GSM8K |
+| 2022-04-04 | SayCan | CoT |
+| 2022-05-21 | Zero-shot CoT | CoT、Self-Consistency、Scratchpads、SayCan、GSM8K |
+| 2022-05-21 | Least-to-Most | CoT |
+| 2022-05-01 | MRKL | — |
+| 2022-07-12 | Inner Monologue | CoT、Scratchpads、SayCan、GSM8K |
+| 2022-10-07 | Self-Ask | CoT |
+| 2022-10-06 | **ReAct** | 以上全部（它是唯一的集大成者） |
+| 2022-11-18 | PAL | CoT |
+| 2023-02-09 | Toolformer | CoT |
 
-### 四条**不成立**的边（我一度误判，留在这里防你踩）
+「能看见」一列对**摘要级**的那几篇是**推断**（我手里没有它们的参考文献表，只能按时间判断它们可能引谁），已在第 4 节标明。对七篇 PDF 级的是**已核实**。
+
+### 1.2 引用矩阵（行 = 引用方，列 = 被引方）
+
+只列**已核实**的边。`●` = 参考文献表里有明确条目。
+
+| ↓引用 ／ 被引→ | RAG | GSM8K | Scratch | WebGPT | CoT | SC | SayCan | ZS-CoT | L2M | IM | Self-Ask |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| WebGPT | ● | | | | | | | | | | |
+| CoT | | ● | ● | ● | | ●※ | ●※ | | | | |
+| Self-Consistency | | ● | | | ● | | | ● | | | |
+| SayCan | | | | | ● | | | | | | |
+| Zero-shot CoT | | ● | ● | | ● | ● | ● | | | | |
+| Inner Monologue | | ● | ● | | ● | | ● | | | | |
+| ReAct | | ● | ● | ● | ● | ● | ● | ● | ● | ● | |
+
+※ **CoT 行有两处只对 v6 成立**：Self-Consistency（2022-03）与 SayCan（2022-04）都晚于 CoT v1（2022-01），它们是 CoT 修订版加进去的。见第 0 节。
+
+`SC` = Self-Consistency，`ZS-CoT` = Zero-shot CoT，`L2M` = Least-to-Most，`IM` = Inner Monologue。
+
+**从矩阵能直接读出的三件事**：
+
+1. **CoT 是被引最多的一篇**（五篇引它）——它是这个网络里的枢纽。
+2. **ReAct 是唯一横跨全部列的**，除了 RAG。它没引 RAG，RAG 是通过 WebGPT 间接进来的。
+3. **MRKL 是彻底的孤立节点**（零引用）；Least-to-Most 只被 ReAct 引用一次，其余六篇都没引它。
+
+### 1.3 可渲染的 Mermaid 版本
+
+Git 预览支持 Mermaid 的话，复制下面这段：
+
+```mermaid
+graph TD
+    RAG["RAG<br/>2020-05"] --> WebGPT["WebGPT<br/>2021-12"]
+    Scratch["Scratchpads<br/>2021-11"] --> CoT["CoT<br/>2022-01"]
+    WebGPT --> CoT
+    CoT --> SC["Self-Consistency<br/>2022-03"]
+    GSM8K["GSM8K<br/>2021-10"] --> SC
+    CoT --> SayCan["SayCan<br/>2022-04"]
+    SC --> ZS["Zero-shot CoT<br/>2022-05"]
+    SayCan --> ZS
+    Scratch --> ZS
+    CoT --> IM["Inner Monologue<br/>2022-07"]
+    SayCan --> IM
+    Scratch --> IM
+    CoT --> ReAct["ReAct<br/>2022-10"]
+    SC --> ReAct
+    ZS --> ReAct
+    IM --> ReAct
+    SayCan --> ReAct
+    WebGPT --> ReAct
+    Scratch --> ReAct
+    L2M["Least-to-Most<br/>2022-05"] --> ReAct
+    MRKL["MRKL<br/>2022-05"]:::iso
+    classDef iso fill:#eee,stroke:#999,stroke-dasharray: 4 4
+```
+
+全部为实线，即每条边都在参考文献表里有条目。灰色孤立节点 = 在这七篇里零引用。
+
+### 1.4 四条**不成立**的边（我一度误判，留在这里防你踩）
 
 | 疑似 | 实情 |
 |---|---|
