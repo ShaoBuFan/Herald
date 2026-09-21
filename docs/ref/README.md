@@ -4,6 +4,8 @@
 
 `docs/research/` 里的对照研究引用本目录文件时，写作 `docs/ref/<文件名>`。
 
+> 依赖图、推荐阅读顺序、以及**尚未取到 PDF 的 8 篇清单**见 [`../research/paper-reading-map.md`](../research/paper-reading-map.md)。
+
 ## 当前收录
 
 | 文件名 | 论文 | 版本 | 来源 | 被哪篇研究引用 |
