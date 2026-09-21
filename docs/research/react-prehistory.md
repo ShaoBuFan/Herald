@@ -2,7 +2,9 @@
 
 调研日期：2026-09-21。本文补的是 [`react-lineage.md`](react-lineage.md) 第 11 节留下的前史缺口——ReAct 自己继承了谁。
 
-与那篇的差别在于证据层级：本文的关键继承关系来自 **ReAct 正文**（Related Work 与 Introduction），其余各篇的定量结果与发表信息来自 arXiv 摘要页。**我没有读到任何一篇的 PDF 正文**（ReAct 除外，读的是 ar5iv 全文）。因此凡是只能靠正文才能确认的断言，一律进第 9 节。无法从一手来源确认的，不写。
+与那篇的差别在于证据层级：本文的关键继承关系来自 **ReAct v3 正文与参考文献表**，其余各篇的定量结果来自各自 PDF 正文。
+
+**版本说明（2026-09-21 更新）**：本文初版只依赖 arXiv 摘要页；随后取得四篇 PDF 正文（`docs/ref/`），本文据此做了三类修正——补入 SayCan 的精确公式与消融数字、补入 WebGPT 的完整动作空间、**纠正了初版「ReAct 未引 Scratchpads」的错误结论**。第 9 节逐条标注了当前的证据层级。
 
 ---
 
@@ -10,32 +12,62 @@
 
 | 线索 | 代表工作 | 首次提交 | 「思考」住在哪 | 与 ReAct 的关系 |
 |---|---|---|---|---|
-| 中间步骤 | Scratchpads (2112.00114) | 2021-11 | 模型输出（**经微调**） | 概念前身，ReAct 未引 |
+| 中间步骤 | Scratchpads (2112.00114) | 2021-11 | 模型输出（**经微调**） | **确认被引**（初版误判为未引） |
 | 推理 | CoT (2201.11903) | 2022-01 | 模型输出（纯提示） | **直接继承**，被当成要修的对象 |
 | 采样 | Self-Consistency (2203.11171) | 2022-03 | 模型输出 × n 条路径 | **被改掉**（ReAct 只跑一条） |
 | 分解 | Least-to-Most (2205.10625) | 2022-05 | 模型输出（两阶段） | 平行，ReAct 只列为跟进工作 |
 | 中间步骤 | PAL (2211.10435) | 2022-11 | 模型写代码，解释器算 | 事后：ReAct 的「行动」的另一种接法 |
 | 检索 | RAG (2005.11401) | 2020-05 | **不在模型里**，检索器决定 | 血缘远；决策权归属相反 |
 | 动作 | WebGPT (2112.09332) | 2021-12 | 无显式思考通道 | **被改掉**：训练 → 提示 |
-| 动作 | SayCan (2204.01691) | 2022-04 | 无；技能价值函数过滤动作 | 事后：工具校验/权限的祖先 |
+| 动作 | SayCan (2204.01691) | 2022-04 | 无；技能价值函数过滤动作 | **被引**；世界接地由「当前场景有什么」换成「学出来的可行性」 |
 | 思考+反馈 | Inner Monologue (2207.05608) | 2022-07 | 环境反馈转成语言 | **ReAct 自己承认的最近前作** |
 | 工具 | Toolformer (2302.04761) | 2023-02 | 权重（自监督训练） | 晚 ReAct 一年，反向路线 |
 
-五条判决：
+六条判决：
 
 1. **ReAct 的思考侧是 CoT，动作侧是 WebGPT 与 SayCan。** 它自己在前言里就是这么分的：一边是「reasoning... e.g. chain-of-thought prompting」，一边是「acting... e.g. action plan generation」。ReAct 的贡献不是发明这两侧，而是把两侧接进同一个循环。
 2. **ReAct 明确承认 Inner Monologue 是最接近的前作**，并且把差别定义在「思考的自由度与稀疏性」上——不是有没有思考，而是思考受不受限。这一点决定了后来所有 agent 的 thinking 通道设计。
 3. **WebGPT → ReAct 的分叉不在「训练 vs 提示」这个表面标签上，而在动作空间的复杂度。** WebGPT 要训，是因为它的动作空间大（浏览、引用、作答）且需要人类偏好信号；ReAct 敢只提示，是因为在知识密集任务上它把动作空间压到三个（`search` / `lookup` / `finish`）。ReAct 自己用一句话点破了这层关系。
 4. **ReAct 的微调实验比它的提示实验更值得记。** 3000 条自举轨迹微调后，8B 微调 ReAct 打得过所有 62B 提示方法。这是「工具使用属于权重，不属于提示」这条判词在 ReAct 论文内部的证据——而 [`react-lineage.md`](react-lineage.md) 目前把它归给了 2023-06 之后的原生函数调用。
 5. **Self-Consistency 那条路在 agent 里断了。** CoT-SC 要把同一条问题采样 21 次投票；agent 每步都有副作用，采样 21 条带副作用的轨迹在语义上就不成立。ReAct 只在「无副作用的推理」这一侧借用 CoT-SC，动作侧永远只跑一条。
+6. **LLM 与世界接地缺一不可，SayCan 的消融把这件事量了出来。** 去掉 LLM，规划成功率 **0%**；去掉世界接地，84% → **67%**。这直接对应今天 harness 的两半——模型负责「做什么有意义」，工具与环境负责「什么是真的」。只优化其中一半都是白费。
 
 ---
 
 ## 1. ReAct 的直接继承
 
-来源：ReAct 正文 Related Work 与 Introduction（[ar5iv 全文](https://ar5iv.labs.arxiv.org/html/2210.03629)）。以下引语逐字取自该页。
+来源：ReAct v3 正文 Related Work 与 Introduction，另加参考文献表。引语逐字取自 PDF（`docs/ref/2210.03629v3.pdf`），与 [ar5iv 抓取版](https://ar5iv.labs.arxiv.org/html/2210.03629) 交叉核对一致。
 
 版本核对：ReAct 于 **2022-10-06** 提交 v1，v3（2023-03-10）的 Comments 字段写明「v3 is the ICLR camera ready version」，ICLR 2023 归属由此确认（[摘要页](https://arxiv.org/abs/2210.03629)）。
+
+### 参考文献表核实（v3 PDF，`docs/ref/2210.03629v3.pdf`）
+
+上一轮我只能确认「正文按名讨论」，编号给不出。**现已读到 ReAct v3 的完整 References 表**，逐条核对如下：
+
+| 被引文献 | ReAct 文献表里的条目 | 是否被引 |
+|---|---|---|
+| Ahn et al., SayCan | Do as i can, not as i say: Grounding language in robotic affordances, 2022. arXiv:2204.01691 | **确认** |
+| Huang et al., Inner Monologue | Inner monologue: Embodied reasoning through planning with language models, 2022b. arXiv:2207.05608 | **确认** |
+| Kojima et al., Zero-shot CoT | Large language models are zero-shot reasoners, 2022. arXiv:2205.11916 | **确认** |
+| Lewis et al., RAG | Retrieval-augmented generation for knowledge-intensive nlp tasks. NeurIPS 33:9459–9474, 2020 | **确认** |
+| Nakano et al., WebGPT | Webgpt: Browser-assisted question-answering with human feedback, 2021. arXiv:2112.09332 | **确认** |
+| Nye et al., Scratchpads | Show your work: Scratchpads for intermediate computation with language models, 2021. arXiv:2112.00114 | **确认**（初版结论错误） |
+| Wang et al., Self-Consistency | Self-consistency improves chain of thought reasoning in language models, 2022a. arXiv:2203.11171 | **确认** |
+| Wang et al., Rationale-augmented ensembles | Rationale-augmented ensembles in language models, 2022b. arXiv:2207.00747 | **确认** |
+| Wei et al., CoT | Chain of thought prompting elicits reasoning in large language models, 2022. arXiv:2201.11903 | **确认** |
+| Zelikman et al., STaR | Star: Bootstrapping reasoning with reasoning, 2022. arXiv:2203.14465 | **确认**（微调那一节的来源） |
+| Zhou et al., Least-to-Most | Least-to-most prompting enables complex reasoning in large language models, 2022. arXiv:2205.10625 | **确认** |
+| Creswell & Shanahan | Faithful reasoning using large language models, 2022. arXiv:2208.14271 | 确认 |
+| Creswell et al. | Selection-inference: Exploiting large language models for interpretable logical reasoning, 2022. arXiv:2205.09712 | 确认 |
+| Lazaridou et al. | Internet-augmented language models through few-shot prompting for open-domain QA, 2022. arXiv:2203.05115 | 确认 |
+| Shuster et al. | Language models that seek for knowledge: Modular search & generation, 2022a | 确认 |
+| **Toolformer** | — | **确认未引**（ReAct 提交于 2022-10，Toolformer 发布于 2023-02，不可能被引） |
+| **PAL** | — | **确认未引**（同上，PAL 为 2022-11） |
+
+两点结论：
+
+1. **推理侧的清单比上一轮写的多一个成员：zero-shot CoT（Kojima et al., arXiv:2205.11916）。** 这是上一轮明确记为「仍然缺的一块」，现在补齐。
+2. **Scratchpads 确实被引。** 初版写「概念前身，ReAct 未引」是错的——那个判断来自 ar5iv 抓取在 Related Work 之后被截断，我据此做了未引的推断，属于从缺失证据推出结论。这条已修正。
 
 ### 对自己谱系的定位
 
@@ -104,17 +136,25 @@ Nye et al.，2021-11-30 提交（[摘要页](https://arxiv.org/abs/2112.00114)�
 
 做法是**训练** transformer 把中间计算步骤吐进一个「scratchpad」，任务覆盖从长加法到执行任意程序。摘要是这么说的：「we **train** transformers to perform multi-step computations by asking them to emit intermediate computation steps into a "scratchpad"」。
 
-关键事实：**它的中间步骤是训练出来的，不是提示出来的。** 这一点让它与 CoT 有了性质差别，尽管「让模型把中间过程写出来」这个想法更早出现在这里。它是 CoT 的概念前身，**不是**方法前身。ReAct 未引用它（这一点无法从 arXiv 摘要页确认，见第 9 节）。
+关键事实：**它的中间步骤是训练出来的，不是提示出来的。** 这一点让它与 CoT 有了性质差别，尽管「让模型把中间过程写出来」这个想法更早出现在这里。它是 CoT 的概念前身，**不是**方法前身。
+
+**修正**：初版本文写「ReAct 未引用它」，那是错的。ReAct v3 的参考文献表里有完整条目（arXiv:2112.00114）。当时的判断是在 ar5iv 抓取被截断后做出的，属于从「没看到」推出「不存在」——这类推断不该写进文档。
 
 ### 2.2 Chain-of-Thought —— ReAct 思考侧的直接来源（arXiv:2201.11903）
 
 Wei et al.，2022-01-28 提交，v6 于 2023-01-10（[摘要页](https://arxiv.org/abs/2201.11903)）。
 
-纯提示：「a few chain of thought demonstrations are provided as exemplars in prompting」。规模结论是「such reasoning abilities **emerge naturally in sufficiently large** language models」。最常被引的数字：**540B 模型 + 8 条 CoT 示例，在 GSM8K 上达到 SOTA，超过带 verifier 的微调 GPT-3。**
+纯提示：「a few chain of thought demonstrations are provided as exemplars in prompting」。最常被引的数字：**540B 模型 + 8 条 CoT 示例，在 GSM8K 上达到 SOTA，超过带 verifier 的微调 GPT-3。**
+
+**涌现的临界点（正文核对，`docs/ref/2201.11903v6.pdf`）**：
+
+> 「chain-of-thought prompting is an emergent ability of model scale. That is, chain-of-thought prompting **does not positively impact performance for small models, and only yields performance gains when used with models of ∼100B parameters.** We qualitatively found that models of smaller scale produced **fluent but illogical chains of thought**, leading to lower performance than standard prompting.」
+
+「fluent but illogical」这个描述值得记住——**小模型会生成读起来很顺但没有逻辑的推理链，于是比不推理更差。** 这是「涌现」的具体机制，不是一句玄学。文中还指出提升幅度与题目难度相关：GSM8K（基线最低）上最大模型的表现翻倍以上，而 SingleOp（只需一步）几乎没收益。
 
 两个容易记错的地方：
 
-- 它的成果不是「推理更强」这种笼统说法，而是**在足够大的模型上涌现**——小模型用 CoT 会更差。这条在 ReAct 里被复现了：PaLM-8/62B 上提示式 ReAct 是四种方法中最差的。
+- 它的成果不是「推理更强」这种笼统说法，而是**在足够大的模型上涌现**——约 100B 以下用 CoT 会更差。这条在 ReAct 里被复现了：PaLM-8/62B 上提示式 ReAct 是四种方法中最差的。
 - CoT 是纯提示，参数不动。它把推理的责任放在**模型自身能力 + 提示构造**上，harness 不参与。
 
 ReAct 对 CoT 的批评用词很硬：「this "chain-of-thought" reasoning is a static black box, in that the model uses its own internal representations to generate thoughts and is **not grounded in the external world**」。
@@ -205,11 +245,33 @@ Schick et al.，2023-02-09 提交，单版本（[摘要页](https://arxiv.org/ab
 
 Nakano et al., OpenAI，2021-12-17 提交，32 页（[摘要页](https://arxiv.org/abs/2112.09332)）。**比 ReAct 早十个月。**
 
-做法：微调 GPT-3 在一个纯文本的网页浏览环境里回答问题，允许 search 与 navigate。**它不是纯提示**——训练流程是行为克隆 → 人类偏好奖励模型 → 拒绝采样（rejection sampling）。为了让人类容易评估事实准确性，模型浏览时必须**同时收集引用**。
+做法：微调 GPT-3 在一个纯文本的网页浏览环境里回答问题。**它不是纯提示**——训练流程是行为克隆 → 人类偏好奖励模型 → 拒绝采样（rejection sampling）。为了让人类容易评估事实准确性，模型浏览时必须**同时收集引用**。
 
-成绩：最好的模型（行为克隆微调 + 对奖励模型做拒绝采样）的答案被人类偏好**胜过人类示范者 56% 的时间**，胜过 Reddit 最高票答案 **69% 的时间**。测试集是 ELI5。
+成绩：最好的模型（行为克隆微调 + 对奖励模型做拒绝采样）的答案被人类偏好**胜过人类示范者 56% 的时间**，胜过 Reddit 最高票答案 **69% 的时间**。测试集是 ELI5（另有 TruthfulQA）。论文还给了另一组更硬的口径：答案 **75% 为真**，**54% 同时为真且有信息量**，强于基座 GPT-3 但不如人类。
+
+**动作空间完整清单（正文核对，`docs/ref/2112.09332v3.pdf` Table 1）**——摘要只说 search 与 navigate，实际有十种命令：
+
+| 命令 | 效果 |
+|---|---|
+| `Search <query>` | 发给 Bing API，显示结果页 |
+| `Clicked on link <link ID>` | 跟随链接 |
+| `Find in page: <text>` | 定位并滚动到下一个匹配 |
+| `Quote: <text>` | 在当前页找到则**加入引用** |
+| `Scrolled down <1,2,3>` / `Scrolled up <1,2,3>` | 滚动 |
+| `Top` / `Back` | 回到页首 / 上一页 |
+| `End: Answer` | 结束浏览，进入作答阶段 |
+| `End: <Nonsense, Controversial>` | 结束浏览并**跳过作答** |
+
+关键规则：**生成任何其他文本都算无效动作**；无效动作照样计入步数上限，但不产生效果。动作预算在训练时从 20–100 均匀随机采样，评估时固定为 100。
+
+还有两处结构上更重要的事实：
+
+1. **每一步都是全新 context。** 正文原话：「This process is then repeated with a fresh context (hence, **the only memory of previous steps is what is recorded in the summary**).」模型没有对话历史，每一步只看到当前环境摘要。这与 ReAct 把完整 thought-action-observation 轨迹留在上下文里是**根本不同的记忆模型**。
+2. **引用是「浏览」与「作答」两阶段的桥。** 浏览阶段收集到的引用（页标题、域名、摘录）在结束后连同问题一起喂给模型写终稿；没有引用就不进作答阶段。
 
 **这份材料里最值得注意的设计是「边浏览边收集引用」。** 它是为了服务**人类评估**而加的输出约束，副产品是把「来源」变成了模型输出的一等公民。今天 agent 在回答里带文件路径和行号，血缘在这里。
+
+最后补一处论文自己提的对照：它在设计环境时明确说，此前 REALM、RAG 这类工作「has focused on improving document retrieval for a given query. **Instead, we use a familiar existing method for this: a modern search engine (Bing)**」——理由是搜索引擎已经很强且索引新鲜，可以把注意力放到「用搜索引擎回答问题」这个更高层任务上。**这正是后来 agent 选的路：不自建检索器，直接用现成工具。**
 
 ### 4.2 SayCan（arXiv:2204.01691）
 
@@ -217,11 +279,37 @@ Ahn et al., Google，2022-04-04 提交，v2 于 2022-08-16（[摘要页](https:/
 
 动机陈述直指 LLM 的短板：「a significant weakness of language models is that they lack real-world experience, which makes it difficult to leverage them for decision making within a given embodiment」。举例很具体：问模型怎么清理洒出来的东西，它会给出合理叙述，但那个叙述不适用于**这个**环境里的**这个**机器人。
 
-解法是**用预训练技能约束模型的提议**：「pretrained skills, which are used to constrain the model to propose natural language actions that are **both feasible and contextually appropriate**」。抽象层面是两个打分相乘：语言模型给「这句话在语义上是否指向该技能」，技能的价值函数给「该技能在当前状态下是否可行、能否完成目标」。
+解法是**用预训练技能约束模型的提议**：「pretrained skills, which are used to constrain the model to propose natural language actions that are **both feasible and contextually appropriate**」。
+
+**精确公式（正文核对，`docs/ref/2204.01691v2.pdf` Section 3）**。记指令为 `i`，技能集合为 `Π`，技能 `π` 有文本标签 `ℓ_π` 与可供性函数 `p(c_π | s, ℓ_π)`（在状态 `s` 下执行 `ℓ_π` 成功完成的概率，`c_π` 是伯努利变量）。LLM 给出 `p(ℓ_π | i)`，即可供性函数与语言概率相乘后取最大：
+
+```
+π = arg max_{π∈Π} p(c_π | s, ℓ_π) · p(ℓ_π | i)
+```
+
+论文把两项分别命名为 **task-grounding**（`p(ℓ_π|i)`，技能是否是对该指令有意义的下一步）与 **world-grounding**（`p(c_π|s,ℓ_π)`，该技能在这个世界里此刻能否做成）。可供性函数在 RL 术语里就是「成功为 1、失败为 0」的奖励下的价值函数。
+
+**消融数字（Table 2 / Section 5.2）**：
+
+| 配置 | 规划成功率 |
+|---|---|
+| PaLM-SayCan（完整） | **84%** |
+| No VF（去掉价值函数，只取语言分最高的技能） | 67% |
+| Generative（用生成式输出再投影到最近技能） | 74% |
+| BC NL（**不用 LLM**，直接把指令喂给策略） | **0%** |
+| BC USE（不用 LLM，指令投影到最近技能） | 9%（执行成功率） |
+
+完整系统在训练环境的规划成功率 84%、执行成功率 74%；在真实厨房 81% / 60%。
 
 v2 追加的内容里有几项值得单独记：增加了 PaLM 结果、**增加了 chain of thought prompting 的研究**、多语言指令、以及**语言模型规模的消融**。
 
-**与今天 harness 的关系需要说清是有条件的**：SayCan 的约束作用是「不可行的动作被筛掉」，机制是学出来的价值函数；harness 里的工具参数校验与权限判定是确定性的规则判定。功能位相同（在动作执行前拦一道），实现路径不同（学出来的可行性 vs 写出来的规则）。把它当成同一个东西会误判代价——价值函数可能漏判，规则不会。
+**与今天 harness 的关系需要说清是有条件的**：SayCan 的约束作用是「不可行的动作被筛掉」，机制是学出来的价值函数；harness 里的工具参数校验与权限判定是确定性的规则判定。功能位相同（在动作执行前拦一道），实现路径不同（学出来的可行性 vs 写出来的规则）。把它当成同一个东西会误判代价。**消融给了这个「代价」一个量级**：去掉世界接地（No VF）让规划成功率从 84% 掉到 67%——**一个校准不准的可行性判断，漏掉的正是最难的那批情形**。而规则系统不会漏判自己覆盖的部分，代价换成了另一样东西：**规则外的一律拦不住**。
+
+另外，作者自陈的第 3 条局限对今天同样成立：
+
+> 「the system is not easily able to react to situations where individual skills fail despite reporting a high value」
+
+**技能报告高价值却执行失败时，系统不会应对。** 这正是权限系统与工具执行语义要处理的问题，SayCan 停在「承认它」这一步。
 
 ### 4.3 Inner Monologue（arXiv:2207.05608）
 
@@ -247,9 +335,11 @@ Karpas et al., AI21 Labs，2022-05-01 提交（[摘要页](https://arxiv.org/abs
 
 表面叙述是「ReAct 证明了纯提示够用」。证据指向更具体的原因：**动作空间的复杂度决定了要不要训。**
 
-- WebGPT 的动作空间大（搜索、导航、引用、作答），且需要人类偏好信号来判断答案质量 → 必须训
-- SayCan 的动作空间是连续控制，可行性要靠价值函数判断 → 部分必须训
+- WebGPT 的动作空间有**十种命令**（搜索、点链接、页内查找、引用、滚动、回退、结束/跳过作答），且需要人类偏好信号来判断答案质量 → 必须训
+- SayCan 的动作空间是连续控制，可行性要靠 RL 学出的价值函数判断 → 部分必须训
 - ReAct 在知识密集任务上把动作空间压到三个（`search` / `lookup` / `finish`），**每个动作的语义都能从名字读出来** → 可以只提示
+
+还有一层差别比动作空间更根本，是**记忆模型**：WebGPT 每一步都是全新 context，「the only memory of previous steps is what is recorded in the summary」；ReAct 把完整轨迹留在上下文里。**WebGPT 需要训，部分原因就是它把记忆外包给了环境摘要——模型必须学会从摘要里重建状态。** ReAct 把这件事交给上下文本身，于是模型不必学。
 
 ReAct 对动作空间的弱化是**刻意**的，正文写得很直白：这个 API「mostly can only retrieve a small part of a passage based on exact passage name, which is significantly weaker than state-of-the-art lexical or neural retrievers. **The purpose is to simulate how humans would interact with Wikipedia, and force models to retrieve via explicit reasoning in language.**」
 
@@ -273,11 +363,15 @@ ReAct 对动作空间的弱化是**刻意**的，正文写得很直白：这个 
 
 三条路径，值得并列而不是抹平：
 
-1. **学出来的**（SayCan）：技能价值函数给出可行性，可能漏判，但能泛化到没写过的情形
+1. **学出来的**（SayCan）：技能价值函数给出可行性。**消融给了代价的量级**——去掉世界接地后规划成功率 84% → 67%，且作者自陈「技能报告高价值却执行失败时系统不会应对」
 2. **筛出来的**（ReAct）：不筛。动作空间故意做小，让模型自己别犯错——搜不到就是观察结果，模型自己恢复
 3. **写出来的**（今天的 harness）：参数 schema 校验 + 路径围栏 + 命令策略，确定性，但只能拦住写进规则的
 
-ReAct 的立场是第 2 条，而且是被低估的设计选择：**把错误变成观察，而不是阻止它发生。** 搜不到、参数错、文件不存在，都是回灌给模型的 observation。今天 harness 里「工具失败不中断循环，把错误当结果回灌」的语义，出处在这条线上。而权限系统要处理的是第 3 类——**不可逆的副作用**，ReAct 的论文里没有这类动作，所以它对权限问题没有答案。
+ReAct 的立场是第 2 条，而且是被低估的设计选择：**把错误变成观察，而不是阻止它发生。** 搜不到、参数错、文件不存在，都是回灌给模型的 observation。今天 harness 里「工具失败不中断循环，把错误当结果回灌」的语义，出处在这条线上。
+
+**SayCan 的消融还说明了另一件事：LLM 与世界接地缺一不可。** 去掉 LLM（BC NL）规划成功率 **0%**，去掉世界接地（No VF）掉到 67%，只有两者都在才到 84%。这直接对应今天 harness 的两半——**模型负责「做什么有意义」，工具与环境负责「什么是真的」**。
+
+而权限系统要处理的是第 3 类里的**不可逆副作用**：ReAct 的论文里没有这类动作（作者在 Broader Impact 里明说「without any dangerous actions in the action space design」，模型不能真买商品、不能编辑 Wikipedia），所以它对权限问题没有答案。**ReAct 能回避权限问题，是因为它把动作空间设计得足够安全——这是权限设计的一种极端解法：不要有危险动作。**
 
 ---
 
@@ -294,10 +388,14 @@ ReAct 的立场是第 2 条，而且是被低估的设计选择：**把错误变
 | 贪心解码的 CoT | Self-Consistency | 采样 + 边缘化显著优于单路径（GSM8K +17.9%） | [2203.11171](https://arxiv.org/abs/2203.11171) |
 | 让模型自己做算术 | PAL | 模型即使分解对了也在算术/逻辑上出错，改由解释器求解 | [2211.10435](https://arxiv.org/abs/2211.10435) |
 | 只靠参数化知识 | RAG | 无法提供 provenance、无法更新世界知识 | [2005.11401](https://arxiv.org/abs/2005.11401) |
-| 不受约束的 LLM 动作提议 | SayCan | 语义合理但物理上不可行，需要技能价值函数过滤 | [2204.01691](https://arxiv.org/abs/2204.01691) |
+| 不受约束的 LLM 动作提议 | SayCan | 语义合理但物理上不可行，需要技能价值函数过滤（84% vs 67%） | [2204.01691](https://arxiv.org/abs/2204.01691) |
+| 不用 LLM 的指令跟随 | SayCan | BC NL 规划成功率 0%，投影到已知技能的 BC USE 也只有 9% | 同上 |
+| 自建检索器 | WebGPT | 改用现成搜索引擎（Bing）——「modern search engines are already very powerful」 | [2112.09332](https://arxiv.org/abs/2112.09332) |
+| 把历史上下文交给模型 | WebGPT | 反例：每步用全新 context，只保留环境摘要作为记忆 | 同上 |
 | 把工具用法留在提示里 | Toolformer | 改为自监督训练进权重 | [2302.04761](https://arxiv.org/abs/2302.04761) |
 | 固定槽位的检索触发 | Self-Ask | 结构固定，模型无自由度（与 ReAct 的对照） | [2210.03350](https://arxiv.org/abs/2210.03350) |
 | 只由环境状态构成的独白 | Inner Monologue → ReAct | ReAct 认为 IM 的思考受限，改为自由形式且稀疏 | [ar5iv 全文](https://ar5iv.labs.arxiv.org/html/2210.03629) |
+| 让模型自己选解码方式（贪心） | CoT → Self-Consistency | 涌现只在约 100B 以上成立；小模型生成 fluent but illogical 的链 | [2201.11903](https://arxiv.org/abs/2201.11903) |
 
 ---
 
@@ -322,43 +420,40 @@ ReAct 的立场是第 2 条，而且是被低估的设计选择：**把错误变
 
 ## 9. 未验证与待补
 
-### 证据层级声明
+### 证据层级（2026-09-21 更新后）
 
-除 ReAct 外，**本篇所有论文我读到的都是 arXiv 摘要页**，不是正文。因此：
+已核对 PDF 正文的四篇（在 `docs/ref/`）：ReAct v3、SayCan v2、WebGPT v3、CoT v6。
 
-- 「核心方法」一节来自摘要的自我陈述，未与正文核对
-- 摘要未提的实验设置（样本数、超参、消融细节）一律未写
-- ReAct 的设计细节来自 ar5iv 全文，可信度高于其余各篇
+仍只有 arXiv 摘要页的：Scratchpads、Self-Consistency、Least-to-Most、Self-Ask、PAL、RAG、Toolformer、Inner Monologue、MRKL、GSM8K。
 
-### 具体未验证项
+也就是说：**继承关系（第 1 节）与两处最关键的公式/消融（SayCan、WebGPT）已是正文级；其余各篇的定量结果仍是摘要级。**
 
-| 断言 | 状态 | 尝试过的来源 |
+### 初版的三处修正
+
+| 初版断言 | 修正后 | 成因 |
 |---|---|---|
-| ReAct 引用了 CoT / Least-to-Most / Self-Consistency / WebGPT / Inner Monologue | **正文引用确认，编号未确认** | ar5iv 全文的 Related Work 明确按名讨论并出现引用标记，但抓取内容在 Related Work 之后被截断，**未读到 References 表**，因此无法给出 `[bib.bibNN]` 编号 |
-| ReAct 未引用 Scratchpads / Toolformer | 未确认 | 参考文献表未读到。Toolformer 晚于 ReAct 四个月，不可能被引；Scratchpads 是否被引未知 |
-| CoT 的正式发表会议 | **未确认** | arXiv 2201.11903 的 v1–v6 页面 Comments 字段**均无发表信息**。社区常引作 NeurIPS 2022 或 TMLR 2023，我在一手来源上无法确认，故本文不写会议 |
-| Toolformer 的发表会议 | 未确认 | v1 页面无 Comments 字段 |
-| Scratchpads 的发表会议 | 未确认 | v1 页面无 Comments 字段 |
-| MRKL 的发表会议 | 未确认 | v1 页面无 Comments 字段 |
-| SayCan v2 所加 CoT 研究的具体结论 | 未确认 | 仅从 v2 的 Comments 字段得知「Added study about ... chain of thought prompting」，正文未读 |
-| SayCan 的精确打分公式 | **表述为结构而非公式** | 本文只写「语言模型打分 × 技能价值函数」，未写等式。若需精确形式须读正文 |
-| WebGPT 的动作空间完整清单 | 未确认 | 摘要只说 search 与 navigate；「引用」来自「models must collect references while browsing」这句 |
+| 「Scratchpads…ReAct 未引」 | **错。确认被引** | 从 ar5iv 抓取截断推出「不存在」——不该做的推断 |
+| 「SayCan 的精确打分公式未确认」 | **已补**：`π = arg max p(c_π\|s,ℓ_π)·p(ℓ_π\|i)` | 读到 PDF 正文 |
+| 「WebGPT 的动作空间完整清单未确认」 | **已补**：十种命令 + 每步全新 context | 读到 PDF 正文 |
+
+### 仍然未确认的条目
+
+| 断言 | 状态 | 说明 |
+|---|---|---|
+| CoT 的正式发表会议 | **未确认** | arXiv 2201.11903 的 v1–v6 页面 Comments 字段均无发表信息；PDF 版本页眉为「Published as a conference paper at ICLR 2023」但那只存在于 ReAct 的 PDF。CoT v6 的首页信息未逐字核对，故仍不写会议 |
+| Toolformer / Scratchpads / MRKL 的发表会议 | 未确认 | 各自 arXiv 页面无 Comments 字段，PDF 未取得 |
 | RAG 的 RAG-Sequence / RAG-Token 命名 | **仅摘要级** | 摘要描述了两种形式但未给这两个术语名，术语名来自社区通行叫法，未经原文确认 |
-| RAG / Self-Consistency / Least-to-Most 的具体分数 | 部分 | 只写了摘要里明确的数字；未从正文补 |
-| PAL 的 15% 具体口径 | **仅摘要级** | 摘要写「absolute 15% top-1」，未核对表格 |
-| GSM8K 的规模口径 | 已核 | [2110.14168](https://arxiv.org/abs/2110.14168) 摘要：「a dataset of 8.5K high quality linguistically diverse grade school math word problems」 |
-| 各篇的代码仓库可达性 | 未检查 | 未逐个访问项目页 |
-
-### 仍然缺的一块
-
-**零样本 CoT（Kojima et al.）未调研。** ReAct 的 Related Work 把它列为 CoT 的三个跟进工作之一，本篇只覆盖了 least-to-most 与 self-consistency。它对应的 arXiv 编号我未取一手来源，因此不写。
+| RAG / Self-Consistency / Least-to-Most / PAL / Self-Ask 的具体分数 | **仅摘要级** | 只写了摘要里明确的数字，未从正文补 |
+| SayCan v2 所加 CoT 研究的具体结论 | 未确认 | 只从 Comments 字段得知「Added study about ... chain of thought prompting」，未读该小节 |
+| 零样本 CoT 的内容 | **编号已确认，内容未调研** | ReAct 文献表确认为 Kojima et al., arXiv:2205.11916；本篇未展开它 |
+| 各篇代码仓库可达性 | 未检查 | 未逐个访问项目页 |
 
 ### 建议下一步
 
-这份文档的证据层级比 [`react-lineage.md`](react-lineage.md) 低（摘要级占多数）。要把它提到同一水平，需要下载以下几篇 PDF 补正文：
+要继续提高证据层级，按价值排序需要：
 
-1. **arXiv:2210.03629** 的 References 表——确认引用编号，把「正文引用确认」升级为「编号确认」
-2. **arXiv:2204.01691**（SayCan）——精确打分公式，这是与权限/校验系统最相关的一处
-3. **arXiv:2112.09332**（WebGPT）——动作空间完整清单与训练流程细节
-4. **arXiv:2201.11903**（CoT）——规模消融的完整曲线，「涌现」的临界点在哪
-5. **arXiv:2203.11171**（Self-Consistency）——「采样 21 条、temperature 0.7」这一设置是否在正文里有依据（本篇是从 ReAct 的基线描述里读到的，非 Self-Consistency 原文）
+1. **arXiv:2203.11171**（Self-Consistency）——「采样 21 条、temperature 0.7」的出处。本篇这一设置是从 **ReAct 的基线描述**读到的，不是 Self-Consistency 原文
+2. **arXiv:2005.11401**（RAG）——RAG-Sequence / RAG-Token 术语与两种形式的实际差别
+3. **arXiv:2205.11916**（Zero-shot CoT）——补上推理线最后一个成员
+4. **arXiv:2205.10625**（Least-to-Most）——两阶段提示的具体构造
+5. **Toolformer / Scratchpads / MRKL** 的发表信息——只能从会议官网或 OpenReview 查，arXiv 页面没有
