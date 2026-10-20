@@ -6,7 +6,7 @@ from .errors import InvalidModelResponseError
 from .models import ParsedResponse, ToolCall
 
 
-BROKEN_FINAL_RE = re.compile(
+_BROKEN_FINAL_RE = re.compile(
     r'^\s*\{\s*'
     r'"thought"\s*:\s*'
     r'(?P<thought>"(?:\\.|[^"\\])*")'
@@ -73,61 +73,79 @@ def _recover_broken_final(text: str) -> dict[str, str] | None:
     except json.JSONDecodeError:
         return None
 
+    raw_final = match.group("final").strip()
+    if len(raw_final) >= 2 and raw_final.startswith('"') and raw_final.endswith('"'):
+        raw_final = raw_final[1:-1]
+
     return {
         "thought": thought,
-        "final": _decode_json_fragment(match.group("final")),
+        "final": _decode_json_fragment(raw_final),
     }
 
 
-def _load_object(text: str) -> dict[str, Any]:
+def _load_object(text: str) -> tuple[dict[str, Any], bool]:
+    recovered = False
     try:
         value = json.loads(text)
     except json.JSONDecodeError as strict_error:
         value = _recover_broken_final(text)
         if value is None:
             raise InvalidModelResponseError(
-                f"Invalid JSON: {strict_error}"
+                f"Invalid JSON: {strict_error}", code="invalid_json"
             ) from strict_error
+        recovered = True
 
     if not isinstance(value, dict):
-        raise InvalidModelResponseError("Response must be a JSON object")
-    return value
+        raise InvalidModelResponseError(
+            "Response must be a JSON object", code="not_an_object"
+        )
+    return value, recovered
 
 
 def parse_response(text: str) -> ParsedResponse:
     """Parse and validate one model response without executing any tools."""
     normalized = (text or "").strip()
     if not normalized:
-        raise InvalidModelResponseError("Empty response")
+        raise InvalidModelResponseError("Empty response", code="empty_response")
 
-    obj = _load_object(normalized)
+    obj, recovered = _load_object(normalized)
     thought = obj.get("thought")
     if not isinstance(thought, str) or not thought.strip():
-        raise InvalidModelResponseError("Missing or invalid 'thought'")
+        raise InvalidModelResponseError(
+            "Missing or invalid 'thought'", code="invalid_thought"
+        )
     thought = thought.strip()
 
     has_final = "final" in obj
     has_tool_calls = "tool_calls" in obj
     if has_final == has_tool_calls:
         raise InvalidModelResponseError(
-            "Response must contain exactly one of 'final' or 'tool_calls'"
+            "Response must contain exactly one of 'final' or 'tool_calls'",
+            code="ambiguous_output",
         )
 
     if has_final:
         final = obj.get("final")
         if not isinstance(final, str) or not final.strip():
-            raise InvalidModelResponseError("Missing or invalid 'final'")
-        return ParsedResponse(kind="final", thought=thought, final=final)
+            raise InvalidModelResponseError(
+                "Missing or invalid 'final'", code="invalid_final"
+            )
+        return ParsedResponse(
+            kind="final", thought=thought, final=final, recovered=recovered
+        )
 
     raw_calls = obj.get("tool_calls")
     if not isinstance(raw_calls, list) or not raw_calls:
-        raise InvalidModelResponseError("'tool_calls' must be a non-empty array")
+        raise InvalidModelResponseError(
+            "'tool_calls' must be a non-empty array", code="invalid_tool_calls"
+        )
 
     calls: list[ToolCall] = []
     for index, raw_call in enumerate(raw_calls):
         if not isinstance(raw_call, dict):
             raise InvalidModelResponseError(
-                f"tool_calls[{index}] must be an object"
+                f"tool_calls[{index}] must be an object",
+                code="invalid_tool_calls",
             )
 
         call_id = raw_call.get("id", str(index))
@@ -136,15 +154,18 @@ def parse_response(text: str) -> ParsedResponse:
 
         if not isinstance(call_id, (str, int)):
             raise InvalidModelResponseError(
-                f"tool_calls[{index}] invalid 'id'"
+                f"tool_calls[{index}] invalid 'id'",
+                code="invalid_tool_calls",
             )
         if not isinstance(name, str) or not name.strip():
             raise InvalidModelResponseError(
-                f"tool_calls[{index}] missing or invalid 'tool'"
+                f"tool_calls[{index}] missing or invalid 'tool'",
+                code="invalid_tool_calls",
             )
         if not isinstance(arguments, dict):
             raise InvalidModelResponseError(
-                f"tool_calls[{index}] 'arguments' must be an object"
+                f"tool_calls[{index}] 'arguments' must be an object",
+                code="invalid_tool_calls",
             )
 
         calls.append(
@@ -159,4 +180,5 @@ def parse_response(text: str) -> ParsedResponse:
         kind="tool_calls",
         thought=thought,
         tool_calls=tuple(calls),
+        recovered=recovered,
     )

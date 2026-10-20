@@ -67,6 +67,12 @@ class Console:
         for line in str(final).splitlines() or [""]:
             self.write(f"  {line}")
 
+    def stream_delta(self, text: str) -> None:
+        self.write(text, end="", flush=True)
+
+    def stream_reasoning_delta(self, text: str) -> None:
+        self.write(f"{self.GRAY}{text}{self.RESET}", end="", flush=True)
+
     def tool_calls_started(self) -> None:
         self.write(f"  {self.ORANGE}─ 工具调用{self.RESET}")
 

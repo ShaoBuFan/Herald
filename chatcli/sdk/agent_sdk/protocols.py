@@ -2,14 +2,14 @@ from collections.abc import Callable
 from typing import Any, Protocol
 
 from .events import AgentEvent
-from .models import ModelResponse
+from .models import ModelRequest, ModelTurn
 
 
 class ModelAdapter(Protocol):
-    """Adapter that hides a concrete model provider or transport."""
+    """Adapter that hides a concrete model provider, transport, and wire format."""
 
-    def complete(self, messages: list[dict[str, Any]]) -> ModelResponse:
-        """Return one normalized model response for the supplied messages."""
+    def complete(self, request: ModelRequest) -> ModelTurn:
+        """Return one normalized assistant turn for the supplied request."""
         ...
 
 

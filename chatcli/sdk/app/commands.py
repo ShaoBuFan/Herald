@@ -1,8 +1,5 @@
 from __future__ import annotations
 
-import json
-from pathlib import Path
-
 from sdk.agent_sdk import Agent, AgentConfig
 
 from .console import console
@@ -27,7 +24,6 @@ def send_to_ai(text, state, config, model, tools, store):
     console.ai_answer("", result.final)
     RESPONSE_PATH.parent.mkdir(parents=True, exist_ok=True)
     RESPONSE_PATH.write_text(result.final, encoding="utf-8")
-    store.append({"role": "assistant", "content": json.dumps({"thought": result.thought, "final": result.final}, ensure_ascii=False)})
 
 
 def choose_model(state, model):

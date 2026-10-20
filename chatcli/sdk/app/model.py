@@ -5,7 +5,7 @@ import time
 import urllib.request
 from urllib.parse import quote
 
-from sdk.agent_sdk import ModelResponse
+from sdk.agent_sdk import ModelRequest, ModelResponse
 
 class MattermostModel:
     def __init__(self, state, config):
@@ -31,16 +31,35 @@ class MattermostModel:
         with urllib.request.urlopen(request, timeout=240) as response:
             return json.loads(response.read().decode("utf-8"))
 
-    def complete(self, messages: list[dict]) -> ModelResponse:
+    def complete(self, request: ModelRequest) -> ModelResponse:
         account = self.state.current_account
         key = self.state.current_model_key
         query = f"requestTime={int(time.time() * 1000)}&accessTeam={quote(account['TEAM_ID'])}"
         if key == "sendMessageToGemini":
             query += f"&chatModel={quote(self.state.current_model_name)}&enableWebSearch={'true' if 'Flash Lite' in self.state.current_model_name else 'false'}"
-        result = self._request("POST", f"/plugins/aslead-chatgpt/{key}?{query}", messages)
+        result = self._request(
+            "POST",
+            f"/plugins/aslead-chatgpt/{key}?{query}",
+            self._wire_messages(request),
+        )
         if not result or not result.get("respMessage"):
             raise RuntimeError(f"模型响应无效: {result}")
         return ModelResponse(text=result["respMessage"], raw=result)
+
+    @staticmethod
+    def _wire_messages(request: ModelRequest) -> list[dict]:
+        sections = [request.system.strip(), request.protocol.strip()]
+        if request.tools:
+            sections.append(
+                "## 可用工具\n"
+                + json.dumps(
+                    request.tools, ensure_ascii=False, separators=(",", ":")
+                )
+            )
+        system_content = "\n\n".join(section for section in sections if section)
+        if not system_content:
+            return list(request.messages)
+        return [{"role": "system", "content": system_content}] + list(request.messages)
 
     def get_me(self):
         return self._request("GET", "/api/v4/users/me")

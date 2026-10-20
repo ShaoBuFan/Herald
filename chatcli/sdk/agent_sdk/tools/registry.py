@@ -1,7 +1,8 @@
+from copy import deepcopy
 from dataclasses import dataclass
 from typing import Any, Callable
 
-from .errors import ToolExecutionError
+from ..errors import ToolExecutionError
 
 
 @dataclass(frozen=True)
@@ -23,7 +24,7 @@ class Tool:
         return {
             "name": self.name,
             "description": self.description,
-            "parameters": self.parameters,
+            "parameters": deepcopy(self.parameters),
         }
 
 

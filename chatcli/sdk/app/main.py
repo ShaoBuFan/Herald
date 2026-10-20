@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from sdk.agent_sdk import TextProtocolAdapter
+
 from .commands import choose_model, handle_save, handle_session, send_to_ai
 from .config import APP_DATA_DIR, PROJECT_ROOT, SESSIONS_DIR, AppState, load_config
 from .console import console
@@ -31,9 +33,10 @@ def read_input():
 def main():
     config = load_config()
     state = AppState(config)
-    model = MattermostModel(state, config)
+    mattermost = MattermostModel(state, config)
+    model = TextProtocolAdapter(mattermost)
     tools = create_file_tools(PROJECT_ROOT)
-    store = SessionStore(SESSIONS_DIR, config.system_prompt)
+    store = SessionStore(SESSIONS_DIR)
     console.print_box([f"{console.ORANGE}chatCLI SDK{console.RESET}", f"model    {state.current_model_name}", f"workspace {PROJECT_ROOT.name}", "", f"Type {console.YELLOW}/help{console.RESET} for commands"])
     while True:
         try:
@@ -46,18 +49,18 @@ def main():
             if text == "/help":
                 show_help()
             elif text == "/clear":
-                store.clear(config.system_prompt)
+                store.clear()
                 console.success("对话历史已清空")
             elif text == "/save":
                 handle_save(store)
             elif text == "/reload":
                 handle_session(store)
             elif text == "/model":
-                choose_model(state, model)
+                choose_model(state, mattermost)
             elif text == "/usage":
-                console.info(str(model.get_usage()))
+                console.info(str(mattermost.get_usage()))
             elif text == "/user":
-                console.info(str(model.get_me()))
+                console.info(str(mattermost.get_me()))
             else:
                 # console.ai_prompt()
                 send_to_ai(text, state, config, model, tools, store)

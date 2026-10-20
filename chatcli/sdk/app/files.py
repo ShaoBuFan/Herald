@@ -90,10 +90,79 @@ def create_file_tools(root: Path) -> ToolRegistry:
         path.write_text(content, encoding="utf-8")
         return {"status": True, "path": str(path.relative_to(root)), "bytes_written": len(content.encode())}
 
-    common = {"type": "object", "properties": {"path": {"type": "string"}}}
+    list_files_parameters = {
+        "type": "object",
+        "properties": {
+            "path": {"type": "string", "description": "相对项目根目录的起始路径，默认 ."},
+            "pattern": {"type": "string", "description": "文件名通配符，默认 *"},
+            "recursive": {"type": "boolean", "description": "是否递归子目录，默认 true"},
+            "limit": {"type": "integer", "description": "最多返回条目数，默认 200"},
+        },
+    }
+    read_file_parameters = {
+        "type": "object",
+        "properties": {
+            "path": {"type": "string", "description": "相对项目根目录的文件路径"},
+            "max_bytes": {
+                "type": "integer",
+                "description": "最多读取的字节数，默认 100000",
+            },
+        },
+        "required": ["path"],
+    }
+    search_text_parameters = {
+        "type": "object",
+        "properties": {
+            "keyword": {"type": "string", "description": "要搜索的文本关键字"},
+            "path": {"type": "string", "description": "相对项目根目录的起始路径，默认 ."},
+            "limit": {"type": "integer", "description": "最多返回的匹配行数，默认 100"},
+        },
+        "required": ["keyword"],
+    }
+    write_file_parameters = {
+        "type": "object",
+        "properties": {
+            "path": {"type": "string", "description": "相对项目根目录的文件路径"},
+            "content": {"type": "string", "description": "要写入的完整文本内容"},
+            "overwrite": {
+                "type": "boolean",
+                "description": "文件已存在时是否覆盖，默认 false",
+            },
+        },
+        "required": ["path", "content"],
+    }
+
     registry = ToolRegistry()
-    registry.register(Tool("list_files", "列出项目文件", common, list_files))
-    registry.register(Tool("read_file", "读取文本文件", common, read_file))
-    registry.register(Tool("search_text", "搜索文本", common, search_text))
-    registry.register(Tool("write_file", "写入文本文件", common, write_file))
+    registry.register(
+        Tool(
+            "list_files",
+            "列出项目内的文件与目录，用于了解项目结构。",
+            list_files_parameters,
+            list_files,
+        )
+    )
+    registry.register(
+        Tool(
+            "read_file",
+            "读取项目内文本文件的内容。查看源码或文档时使用。",
+            read_file_parameters,
+            read_file,
+        )
+    )
+    registry.register(
+        Tool(
+            "search_text",
+            "在项目内文本文件中按关键字搜索，返回匹配行。",
+            search_text_parameters,
+            search_text,
+        )
+    )
+    registry.register(
+        Tool(
+            "write_file",
+            "写入或覆盖项目内的文本文件。只在确实需要修改文件时使用。",
+            write_file_parameters,
+            write_file,
+        )
+    )
     return registry
