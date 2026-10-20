@@ -1,6 +1,6 @@
 # chatCLI
 
-一个微型 Agent 子项目，最初写于公司内部，现随 Herald 一起持续演进。
+一个微型 Agent 子项目，随 Herald 一起持续演进。
 
 ## 与 Herald 的关系
 
