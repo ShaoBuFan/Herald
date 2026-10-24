@@ -44,9 +44,15 @@ ZCode、Claude Code、Codex 等编程 agent 已能满足日常开发需求。但
 
 ## 当前状态
 
-处于初始阶段，尚无可运行代码。
+Herald 主体处于调研阶段，尚无 TypeScript 代码，技术选型与代码目录尚未确定。仓库现在包含三个部分：
 
-仓库当前包含：本文件、[`AGENTS.md`](AGENTS.md)（协作约定与路线图）、许可证及 git 配置。技术选型与目录结构尚未确定。
+| 位置 | 内容 |
+|---|---|
+| [`docs/`](docs/) | Herald 主体的研究工作区：对照研究、决策记录与论文引用，四层分工见 [`docs/README.md`](docs/README.md) |
+| [`chatcli/`](chatcli/) | Python 子项目：可运行的最小 Agent 参照实现（[`chatcli/README.md`](chatcli/README.md)），测试全部离线通过 |
+| [`experiments/`](experiments/) | 实验区，每个实验可整体删除；当前有 `text-protocol` 一个实验 |
+
+协作约定与路线图的完整版在 [`AGENTS.md`](AGENTS.md)。
 
 ## 范围之外
 

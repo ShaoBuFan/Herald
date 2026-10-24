@@ -1,16 +1,26 @@
 # AGENTS.md
 
-> 本文件是本仓库的宪章：既约束 AI 助手的行为，也记录项目的目标、路线与约定。
+> 本文件是本仓库的宪章：既约束 AI 助手的行为，也记录仓库的目标、路线与约定。
 >
 > **它是活文档。** 每完成一个阶段都要回来更新「路线图与当前进度」一节。
 
 ---
 
-## 1. 这个项目是什么
+## 1. 这个仓库是什么
 
-Herald 是一个**从零构建的 AI 编程 agent harness**（智能体框架），对标市面上的 ZCode、DeepSeek Harness（dsh）、Codex CLI、Claude Code。
+仓库里有三个分工不同的部分。硬性规则（第 2 节）与决策记录（`docs/decisions/`）对三者一体适用——**决策集中，实现散布**：
 
-但它的第一属性是 **学习成长型项目**，不是产品。
+| 部分 | 位置 | 是什么 |
+|---|---|---|
+| Herald 主体 | 代码目录尚未建立，当前工作区在 [`docs/`](docs/) | 从零构建的 TypeScript agent harness，路线图（第 4 节）的主体 |
+| chatcli | [`chatcli/`](chatcli/) | Python 子项目：可运行的最小 Agent 参照实现，与主体并行演进、设计取舍相互对照 |
+| 实验室 | [`experiments/`](experiments/) | 可整体删除的实验区，当前只有 `text-protocol` 一个实验 |
+
+### Herald 主体
+
+它是一个**从零构建的 AI 编程 agent harness**（智能体框架），对标市面上的 ZCode、DeepSeek Harness（dsh）、Codex CLI、Claude Code。
+
+它的第一属性是 **学习成长型项目**，不是产品。
 
 - **目标**：真正想明白一个编程 agent 是怎么运转的——每一层为什么这么设计、否决过哪些方案、代价是什么。
 - **成功标准**：作者能用自己的话讲清每个设计决策的理由。**代码能跑只是必要条件，不是充分条件。**
@@ -21,6 +31,8 @@ Herald 是一个**从零构建的 AI 编程 agent harness**（智能体框架）
 ## 2. 给 AI 助手的硬性规则
 
 > 这一节是本文件最重要的部分。**任何 AI 助手在本仓库动手前必须先读这一节。**
+
+> **适用范围是整个仓库**，不只是 Herald 主体。chatcli 与实验室同样是学习的一部分：chatcli 已有的核心（agent 循环、文本协议 codec、流式重组）出自作者之手，此后的修改与扩展同样受 2.1 约束。
 
 ### 2.1 核心逻辑由人类作者编写，AI 不得代劳
 
@@ -208,11 +220,21 @@ AI 做 review 时**指出问题和权衡，而不是顺手改掉**。发现问�
 
 CLI 跑顺之后再做，当作独立的前端学习课题（React + Vite + SSE + REST），不跟内核设计混在一起。
 
+### 并行轨道：chatcli 与实验室
+
+- **chatcli**：`sdk/` 已入库，42 个测试全部离线通过。定位与待办见 [`chatcli/README.md`](chatcli/README.md)（`plan.md` 未补、原项目其余目录尚未回迁）。
+- **实验室**（`experiments/`）：里程碑与删除条件写在各实验自己的 README，当前只有 [`text-protocol`](experiments/text-protocol/README.md)（文本 JSON 协议可行性）。
+
 ---
 
 ## 5. 仓库结构
 
-当前仓库内容：`README.md`、`AGENTS.md`、`docs/`（主要工作区，见 [`docs/README.md`](docs/README.md)）、`LICENSE`、`.gitignore`、`.gitattributes`。
+| 位置 | 内容 | 状态 |
+|---|---|---|
+| [`docs/`](docs/) | Herald 主体的工作区，四层分工见 2.6 | 主要工作区 |
+| [`chatcli/`](chatcli/) | Python 子项目：`sdk/`（框架无关的 agent 运行时 + CLI 应用 + 离线测试） | 可运行 |
+| [`experiments/`](experiments/) | 实验室。**每个实验都可整体删除**，约定、里程碑与删除条件写在实验自己的 README | `text-protocol` 进行中 |
+| 根目录 | `README.md`、`AGENTS.md`、`LICENSE`、`.gitignore`、`.gitattributes` | — |
 
 `docs/` 下四个子目录各司其职（分工见 2.6）：
 
@@ -225,21 +247,39 @@ CLI 跑顺之后再做，当作独立的前端学习课题（React + Vite + SSE 
 
 **不要提前建空目录。** 目录等到有实际内容时再建，并在其中放一份 `README.md` 说明职责——git 不跟踪空目录，而且空目录会诱导后来者猜测（或编造）它的用途。
 
-**代码目录结构尚未确定。** 等作者自己定下技术选型和模块划分之后再写这一节，不要提前固化。可预见的一段时间内工作重心在 `docs/`，不在代码。
+**Herald 主体的代码目录尚未确定。** 等作者自己定下技术选型和模块划分之后再写这一节，不要提前固化。chatcli 与实验室已有各自的目录约定，不受此条影响。
 
-先记一条原则：**如果最终拆出内核层，内核的运行时依赖应尽量保持为零。** 这不是洁癖——它会逼你自己写 SSE 解析、自己处理流式工具调用重组，而这些恰恰是最值得亲手写一遍的东西。
+先记一条原则：**如果最终拆出内核层，内核的运行时依赖应尽量保持为零。** 这不是洁癖——它会逼你自己写 SSE 解析、自己处理流式工具调用重组，而这些恰恰是最值得亲手写一遍的东西。chatcli 的 `agent_sdk` 已按此实现（仅 Python 标准库）。
 
 ---
 
 ## 6. 命令
 
-**尚未搭建，当前没有可用命令。** 等工具链定下来之后回填这一节。
+**Herald 主体尚未搭建，暂无命令。** 仓库内已有的命令：
+
+chatcli（Python 3.13，测试离线，实测 42 例通过）：
+
+```bash
+cd chatcli
+python -m sdk.app                                    # 运行 CLI，配置见其 README
+python -m unittest discover -s sdk -p 'test_*.py'    # 全部测试
+```
+
+experiments/text-protocol（Node >= 24，零安装）：
+
+```bash
+cd experiments/text-protocol
+node --test --test-isolation=none
+```
+
+等 Herald 主体的工具链定下来之后再回填它的命令。
 
 **测试的硬性要求**（与用什么工具链无关）：内核测试必须**离线可跑**，不依赖 API key、不依赖网络。真实 API 的端到端测试在缺少 key 时自动跳过。
 
 **环境事实**（本机已实测，供以后选型时参考）：
 
 - Node 24.19 / pnpm 11.22 已装；npm 源可达，但冷装偏慢（约 1s 基线延迟，批量传输慢）。
+- Python 3.13.12 已装（chatcli 与实验室的 Python 部分实测可跑）。
 - pnpm 11 起不再读取 `package.json` 的 `pnpm` 字段，设置统一放在 `pnpm-workspace.yaml`。另外它有"执行脚本前先检查依赖状态"的行为：若有依赖的安装脚本未获授权，会直接报 `ERR_PNPM_IGNORED_BUILDS` 并拒绝执行**任何**脚本，包括 `tsc`。将来排查"连类型检查都跑不起来"时先看这里。
 - TypeScript 7 **已移除 `baseUrl`**，`paths` 直接相对于 `tsconfig.json` 解析。
 - 本机 node-gyp 未配置（MSVC 在 D 盘且不在 PATH）。**需要本地编译的原生模块装不上**，选型时避开这一类依赖。
@@ -248,13 +288,28 @@ CLI 跑顺之后再做，当作独立的前端学习课题（React + Vite + SSE 
 
 ## 7. 技术约定
 
+**仓库通用**
+
+- **注释与文档语言**：中文。chatcli 回迁代码的英文 docstring 是历史现状，是否翻译已登记待决（见 [`docs/decisions/README.md`](docs/decisions/README.md) 待决清单）。
+- **提交信息**：Conventional Commits（`feat:` / `fix:` / `docs:` / `chore:` / `refactor:` / `test:`），描述可用中文。
+
+**Herald 主体**
+
 - **语言**：TypeScript，ESM（`"type": "module"`）。导入本地模块必须带 `.js` 后缀。
 - **严格模式**：`strict` + `noUncheckedIndexedAccess`，全量开启。
 - **运行时**：Node >= 22.19。
 - **包管理**：pnpm。
 - **原生模块**：**禁用**。本机 node-gyp 未配置（MSVC 在 D 盘且不在 PATH），任何需要本地编译的依赖（`better-sqlite3`、`node-pty`、`tiktoken` 等）一律不用。持久化用 JSONL 而非 SQLite，正是出于此。
-- **注释与文档语言**：中文。
-- **提交信息**：Conventional Commits（`feat:` / `fix:` / `docs:` / `chore:` / `refactor:` / `test:`），描述可用中文。
+
+**chatcli**
+
+- **语言**：Python，开发与测试环境 3.13（语法层面最低 3.10，PEP 604）。
+- **依赖**：仅标准库，零第三方依赖。
+- **测试**：离线可跑，不依赖 API key 与网络。
+
+**实验室（experiments/）**
+
+- 各实验的就地约定以其 README 为准，允许与正式工程不同（例如 text-protocol 用 Node 24 原生 TS 剥离、`.ts` 后缀导入、不做类型检查）。零依赖原则同样适用。
 
 ---
 

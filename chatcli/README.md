@@ -1,11 +1,11 @@
-# chatCLI
+# chatcli
 
 一个微型 Agent 子项目，随 Herald 一起持续演进。
 
 ## 与 Herald 的关系
 
 - Herald 主体仍是 TypeScript 的学习型 harness（见根目录 [`AGENTS.md`](../AGENTS.md)）。
-- `chatCLI` 是独立的 Python 子项目，提供一个可运行的最小 Agent 参照实现。
+- `chatcli` 是独立的 Python 子项目，提供一个可运行的最小 Agent 参照实现。
 - 它不是 Herald 内核，也不替代 Herald 中由作者自写的核心逻辑；两者的设计取舍可以相互对照。
 
 ## 结构
@@ -43,14 +43,14 @@ chatcli/
 
 ## 运行
 
-要求 Python 3.13（代码使用 PEP 604 类型标注，至少需要 3.10）：
+开发与测试环境为 Python 3.13；语法层面最低 3.10（PEP 604 类型标注）。
 
 ```bash
 cd chatcli
 python -m sdk.app
 ```
 
-配置读取 `%APPDATA%/chat-cli/data/config.json`（Linux 为 `~/.local/share/chat-cli/data/config.json`）。也可以先把配置放到项目内的 `data/config.json`，首次启动会复制过去。`data/prompt.json` 可选，只放应用层的人设与任务说明；文本 JSON 协议由 `TextProtocolAdapter` 提供，不要在 prompt 里重复描述。
+配置读取 `%APPDATA%/chat-cli/data/config.json`（Linux 为 `~/.local/share/chat-cli/data/config.json`；数据目录名沿用旧版 `chat-cli` 拼法，与项目名 `chatcli` 不同）。也可以先把配置放到项目内的 `data/config.json`，首次启动会复制过去。`data/prompt.json` 可选，只放应用层的人设与任务说明；文本 JSON 协议由 `TextProtocolAdapter` 提供，不要在 prompt 里重复描述。
 
 ## 模型适配器
 

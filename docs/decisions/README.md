@@ -72,6 +72,14 @@
 - **问题**：成本估算只看 token 数，还是也算提示模板的调用次数？
 - **证据**：[`react-prehistory.md`](../research/react-prehistory.md) §2.6（Zero-shot CoT 是两次调用，论文自己把它与 few-shot 的示例工程做了明确交换）；§7 第 7 条
 
+## 四、仓库事务（与论文研究无关）
+
+### chatcli 英文 docstring 是否翻译
+
+- **分歧**：chatcli 回迁代码的 docstring 与注释基本是英文（仅 `model.py` 有中文注释），与「注释与文档语言：中文」的仓库约定冲突。
+- **候选方向**：A. 全部翻译为中文；B. 保持原样，新增注释用中文；C. 保持原样且不做约定。
+- **证据**：`../AGENTS.md` 第 7 节；`chatcli/sdk/` 下 15 个文件的 docstring 为英文。
+
 ---
 
 ## 与研究文件的关系
