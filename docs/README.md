@@ -31,6 +31,7 @@
 | 文件 | 内容 |
 |---|---|
 | [`README.md`](README.md) | 本文件：文档类型与约定 |
+| [`repo-architecture.excalidraw`](repo-architecture.excalidraw) | 仓库总架构图（Excalidraw 源文件，可在编辑器中打开修改；现状快照，随仓库演进更新） |
 | [`decisions/0000-template.md`](decisions/0000-template.md) | ADR 模板 |
 | [`decisions/README.md`](decisions/README.md) | 待决清单与预留编号 |
 | [`research/README.md`](research/README.md) | 研究文件索引与阅读顺序 |
