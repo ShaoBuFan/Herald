@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from sdk.agent_sdk import Agent, AgentConfig
 
-from .console import console
 from .config import RESPONSE_PATH
+from .display.console import console
 
 
 def send_to_ai(text, state, config, model, tools, store):

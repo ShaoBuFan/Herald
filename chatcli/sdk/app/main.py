@@ -1,13 +1,11 @@
 from __future__ import annotations
 
-from sdk.agent_sdk import TextProtocolAdapter
-
+from .adapters.mattermost import MattermostModel
 from .commands import choose_model, handle_save, handle_session, send_to_ai
 from .config import APP_DATA_DIR, PROJECT_ROOT, SESSIONS_DIR, AppState, load_config
-from .console import console
-from .files import create_file_tools
-from .model import MattermostModel
-from .session import SessionStore
+from .display.console import console
+from .session.store import SessionStore
+from .tools import create_file_tools
 
 
 def show_help():
@@ -34,7 +32,7 @@ def main():
     config = load_config()
     state = AppState(config)
     mattermost = MattermostModel(state, config)
-    model = TextProtocolAdapter(mattermost)
+    model = mattermost
     tools = create_file_tools(PROJECT_ROOT)
     store = SessionStore(SESSIONS_DIR)
     console.print_box([f"{console.ORANGE}chatCLI SDK{console.RESET}", f"model    {state.current_model_name}", f"workspace {PROJECT_ROOT.name}", "", f"Type {console.YELLOW}/help{console.RESET} for commands"])

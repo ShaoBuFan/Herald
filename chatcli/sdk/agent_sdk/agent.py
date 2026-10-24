@@ -2,7 +2,11 @@ from collections.abc import Iterator
 from copy import deepcopy
 
 from .config import AgentConfig
-from .errors import InvalidModelResponseError, MaxRoundsExceeded
+from .errors import (
+    InvalidModelResponseError,
+    MaxRoundsExceeded,
+    ToolExecutionError,
+)
 from .events import AgentEvent
 from .models import AgentResult, ModelTurn, ToolResult
 from .protocols import EventHandler, MessageStore, ModelAdapter, ToolExecutor
@@ -45,6 +49,8 @@ class Agent:
         yield from self._emit(AgentEvent("run_started", {"content": user_text}))
 
         tool_schemas = self.tools.list_tools()
+        # 本轮可调用集合以 run 开始的快照为准：中途注册的工具对本次 run 不可见
+        known_tool_names = {schema["name"] for schema in tool_schemas}
 
         invalid_retries = 0
         for round_index in range(1, self.config.max_rounds + 1):
@@ -133,6 +139,10 @@ class Agent:
                         )
                     )
                     try:
+                        if call.name not in known_tool_names:
+                            raise ToolExecutionError(
+                                f"unknown tool: {call.name}"
+                            )
                         result = ToolResult(
                             call.id,
                             call.name,

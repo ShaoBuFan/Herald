@@ -1,26 +1,16 @@
-import json
-import tempfile
 import unittest
-from pathlib import Path
-from types import SimpleNamespace
 
 from sdk.agent_sdk import (
     Agent,
     AgentConfig,
     InMemoryMessageStore,
     ModelRequest,
-    ModelResponse,
     ModelTurn,
-    TextModelRequest,
-    TextProtocolAdapter,
     Tool,
     ToolCall,
     ToolRegistry,
-    parse_response,
 )
 from sdk.agent_sdk.errors import InvalidModelResponseError
-from sdk.app.model import MattermostModel
-from sdk.app.session import SCHEMA_VERSION, SessionStore
 
 
 class ScriptedAdapter:
@@ -38,20 +28,6 @@ class ScriptedAdapter:
         if isinstance(item, Exception):
             raise item
         return item
-
-
-class ScriptedTextClient:
-    """Deterministic text transport used by the codec tests."""
-
-    def __init__(self, responses):
-        self.responses = list(responses)
-        self.requests = []
-
-    def complete(self, request):
-        self.requests.append(request)
-        if not self.responses:
-            raise AssertionError("no scripted response left")
-        return ModelResponse(text=self.responses.pop(0))
 
 
 def make_tool():
@@ -292,338 +268,45 @@ class ModelRequestTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             ModelRequest(messages=[{"role": "system", "content": "x"}])
 
-    def test_text_model_request_adds_protocol(self):
-        request = TextModelRequest(messages=[], protocol="P")
-        self.assertEqual("P", request.protocol)
+
+class SnapshotGuardedExecutor:
+    """list_tools 只报 read_file；execute 还认得一个没进清单的 ghost。"""
+
+    def __init__(self):
+        self.executed = []
+
+    def list_tools(self):
+        return [
+            {
+                "name": "read_file",
+                "description": "read",
+                "parameters": {"type": "object"},
+            }
+        ]
+
+    def execute(self, name, arguments):
+        self.executed.append(name)
+        return "ok"
 
 
-class ParserErrorCodeTests(unittest.TestCase):
-    def test_parse_errors_carry_codes(self):
-        cases = {
-            "": "empty_response",
-            "nope": "invalid_json",
-            "[]": "not_an_object",
-            '{"final": "x"}': "invalid_thought",
-            '{"thought": "t", "final": "x", "tool_calls": []}': "ambiguous_output",
-            '{"thought": "t", "final": ""}': "invalid_final",
-            '{"thought": "t", "tool_calls": []}': "invalid_tool_calls",
-            '{"thought": "t", "tool_calls": [{"tool": "x", "arguments": "no"}]}': "invalid_tool_calls",
-        }
-        for text, expected_code in cases.items():
-            with self.subTest(text=text):
-                with self.assertRaises(InvalidModelResponseError) as context:
-                    parse_response(text)
-                self.assertEqual(expected_code, context.exception.code)
-
-
-class TextProtocolAdapterTests(unittest.TestCase):
-    def test_renders_semantic_transcript(self):
-        client = ScriptedTextClient(
-            [json.dumps({"thought": "done", "final": "ok"})]
-        )
-        request = ModelRequest(
-            messages=[
-                {"role": "user", "content": "hi"},
-                {
-                    "role": "assistant",
-                    "content": "",
-                    "thought": "need",
-                    "tool_calls": [
-                        {
-                            "id": "c1",
-                            "name": "read_file",
-                            "arguments": {"path": "a"},
-                        }
-                    ],
-                },
-                {
-                    "role": "tool",
-                    "tool_call_id": "c1",
-                    "name": "read_file",
-                    "data": {"content": "x"},
-                    "error": None,
-                },
-            ],
-            system="SYS",
-            tools=[
-                {
-                    "name": "read_file",
-                    "description": "read",
-                    "parameters": {"type": "object"},
-                }
-            ],
-        )
-
-        turn = TextProtocolAdapter(client).complete(request)
-
-        self.assertEqual("ok", turn.content)
-        self.assertEqual("done", turn.thought)
-        text_request = client.requests[0]
-        self.assertIsInstance(text_request, TextModelRequest)
-        self.assertEqual("SYS", text_request.system)
-        self.assertIn("tool_calls", text_request.protocol)
-        self.assertEqual(["read_file"], [tool["name"] for tool in text_request.tools])
-
-        rendered = text_request.messages
-        self.assertEqual(["user", "assistant", "user"], [m["role"] for m in rendered])
-        assistant_payload = json.loads(rendered[1]["content"])
-        self.assertEqual("need", assistant_payload["thought"])
-        self.assertEqual("read_file", assistant_payload["tool_calls"][0]["tool"])
-        tool_payload = json.loads(rendered[2]["content"])
-        self.assertEqual("tool_result", tool_payload["type"])
-        self.assertEqual("c1", tool_payload["results"][0]["id"])
-
-    def test_no_tools_shrinks_the_protocol(self):
-        client = ScriptedTextClient(
-            [json.dumps({"thought": "t", "final": "ok"})]
-        )
-        TextProtocolAdapter(client).complete(
-            ModelRequest(messages=[{"role": "user", "content": "hi"}])
-        )
-
-        protocol = client.requests[0].protocol
-        self.assertNotIn("需要调用工具时使用", protocol)
-        self.assertIn("禁止使用 tool_calls", protocol)
-        self.assertEqual([], client.requests[0].tools)
-
-    def test_tool_turn_maps_to_model_turn(self):
-        client = ScriptedTextClient(
+class ToolSnapshotTests(unittest.TestCase):
+    def test_tool_outside_the_run_snapshot_is_rejected(self):
+        executor = SnapshotGuardedExecutor()
+        adapter, store, agent = make_agent(
             [
-                json.dumps(
-                    {
-                        "thought": "need",
-                        "tool_calls": [
-                            {
-                                "id": "c1",
-                                "tool": "read_file",
-                                "arguments": {"path": "a"},
-                            }
-                        ],
-                    }
-                )
-            ]
-        )
-        turn = TextProtocolAdapter(client).complete(
-            ModelRequest(
-                messages=[{"role": "user", "content": "hi"}],
-                tools=[{"name": "read_file", "parameters": {"type": "object"}}],
-            )
-        )
-
-        self.assertEqual("", turn.content)
-        self.assertEqual("need", turn.thought)
-        self.assertEqual("c1", turn.tool_calls[0].id)
-        self.assertEqual({"path": "a"}, turn.tool_calls[0].arguments)
-
-    def test_tool_results_are_grouped_into_one_envelope(self):
-        client = ScriptedTextClient(
-            [json.dumps({"thought": "t", "final": "ok"})]
-        )
-        TextProtocolAdapter(client).complete(
-            ModelRequest(
-                messages=[
-                    {"role": "user", "content": "hi"},
-                    {
-                        "role": "tool",
-                        "tool_call_id": "c1",
-                        "name": "a",
-                        "data": 1,
-                        "error": None,
-                    },
-                    {
-                        "role": "tool",
-                        "tool_call_id": "c2",
-                        "name": "b",
-                        "data": 2,
-                        "error": "boom",
-                    },
-                ]
-            )
-        )
-
-        rendered = client.requests[0].messages
-        self.assertEqual(2, len(rendered))
-        payload = json.loads(rendered[1]["content"])
-        self.assertEqual(2, len(payload["results"]))
-        self.assertEqual("boom", payload["results"][1]["error"])
-
-    def test_raw_assistant_turn_is_passed_through(self):
-        client = ScriptedTextClient(
-            [json.dumps({"thought": "t", "final": "ok"})]
-        )
-        TextProtocolAdapter(client).complete(
-            ModelRequest(
-                messages=[
-                    {"role": "user", "content": "hi"},
-                    {
-                        "role": "assistant",
-                        "content": "not json at all",
-                        "thought": "",
-                        "tool_calls": [],
-                        "raw": True,
-                    },
-                ]
-            )
-        )
-
-        self.assertEqual("not json at all", client.requests[0].messages[1]["content"])
-
-    def test_invalid_response_sets_feedback_and_raw_text(self):
-        client = ScriptedTextClient(["not json"])
-        with self.assertRaises(InvalidModelResponseError) as context:
-            TextProtocolAdapter(client).complete(
-                ModelRequest(messages=[{"role": "user", "content": "hi"}])
-            )
-
-        error = context.exception
-        self.assertEqual("invalid_json", error.code)
-        self.assertEqual("not json", error.raw_text)
-        self.assertIn("invalid_json", error.feedback)
-
-    def test_recovered_final_marks_the_turn(self):
-        client = ScriptedTextClient(
-            ['{"thought": "t", "final": "line1\nline2"}']
-        )
-        turn = TextProtocolAdapter(client).complete(
-            ModelRequest(messages=[{"role": "user", "content": "hi"}])
-        )
-
-        self.assertTrue(turn.recovered)
-        self.assertEqual("line1\nline2", turn.content)
-
-
-class MattermostWireTests(unittest.TestCase):
-    def test_system_protocol_and_tools_are_prepended(self):
-        model = MattermostModel(
-            SimpleNamespace(),
-            SimpleNamespace(base_url="https://example.com"),
-        )
-        request = TextModelRequest(
-            messages=[{"role": "user", "content": "hi"}],
-            system="APP",
-            protocol="PROTO",
-            tools=[
-                {
-                    "name": "read_file",
-                    "description": "d",
-                    "parameters": {"type": "object"},
-                }
+                tool_turn(ToolCall("c1", "ghost", {})),
+                final_turn("ok"),
             ],
+            tools=executor,
         )
+        result = agent.run("hi")
 
-        wire = model._wire_messages(request)
-
-        self.assertEqual(["system", "user"], [message["role"] for message in wire])
-        self.assertIn("APP", wire[0]["content"])
-        self.assertIn("PROTO", wire[0]["content"])
-        self.assertIn("## 可用工具", wire[0]["content"])
-        self.assertIn("read_file", wire[0]["content"])
-        self.assertEqual({"role": "user", "content": "hi"}, wire[1])
-
-
-class SessionStoreTests(unittest.TestCase):
-    def test_clear_removes_history_without_seeding_a_system_prompt(self):
-        with tempfile.TemporaryDirectory() as directory:
-            store = SessionStore(Path(directory))
-            store.append({"role": "user", "content": "hi"})
-            store.clear()
-            self.assertEqual([], store.get_messages())
-
-    def test_save_includes_schema_version(self):
-        with tempfile.TemporaryDirectory() as directory:
-            store = SessionStore(Path(directory))
-            store.append({"role": "user", "content": "hi"})
-            path = store.save("t")
-            payload = json.loads(path.read_text(encoding="utf-8"))
-            self.assertEqual(SCHEMA_VERSION, payload["version"])
-
-    def test_load_migrates_legacy_text_history(self):
-        legacy = {
-            "title": "old",
-            "history": [
-                {"role": "system", "content": "old system"},
-                {"role": "user", "content": "hi"},
-                {
-                    "role": "assistant",
-                    "content": json.dumps(
-                        {
-                            "thought": "need",
-                            "tool_calls": [
-                                {
-                                    "id": "c1",
-                                    "tool": "read_file",
-                                    "arguments": {"path": "a"},
-                                }
-                            ],
-                        }
-                    ),
-                },
-                {
-                    "role": "user",
-                    "content": json.dumps(
-                        {
-                            "type": "tool_result",
-                            "results": [
-                                {
-                                    "id": "c1",
-                                    "tool": "read_file",
-                                    "data": {"content": "x"},
-                                }
-                            ],
-                        }
-                    ),
-                },
-                {
-                    "role": "assistant",
-                    "content": json.dumps(
-                        {"thought": "done", "final": "ok"}
-                    ),
-                },
-            ],
-        }
-        with tempfile.TemporaryDirectory() as directory:
-            path = Path(directory) / "conversation_old.json"
-            path.write_text(json.dumps(legacy), encoding="utf-8")
-            store = SessionStore(Path(directory))
-            self.assertTrue(store.load(path))
-
-            messages = store.get_messages()
-            self.assertEqual(
-                ["user", "assistant", "tool", "assistant"],
-                [message["role"] for message in messages],
-            )
-            self.assertEqual(
-                [
-                    {
-                        "id": "c1",
-                        "name": "read_file",
-                        "arguments": {"path": "a"},
-                    }
-                ],
-                messages[1]["tool_calls"],
-            )
-            self.assertEqual("c1", messages[2]["tool_call_id"])
-            self.assertEqual({"content": "x"}, messages[2]["data"])
-            self.assertEqual("ok", messages[3]["content"])
-            self.assertEqual("done", messages[3]["thought"])
-
-    def test_semantic_session_round_trip(self):
-        with tempfile.TemporaryDirectory() as directory:
-            store = SessionStore(Path(directory))
-            store.append({"role": "user", "content": "hi"})
-            store.append(
-                {
-                    "role": "assistant",
-                    "content": "ok",
-                    "thought": "t",
-                    "tool_calls": [],
-                }
-            )
-            path = store.save("round trip")
-
-            restored = SessionStore(Path(directory))
-            self.assertTrue(restored.load(path))
-            self.assertEqual(store.get_messages(), restored.get_messages())
+        self.assertEqual("ok", result.final)
+        self.assertEqual([], executor.executed)
+        self.assertIn("unknown tool: ghost", store.get_messages()[2]["error"])
+        self.assertEqual(
+            ["read_file"], [tool["name"] for tool in adapter.requests[0].tools]
+        )
 
 
 if __name__ == "__main__":

@@ -48,36 +48,12 @@ class ModelTurn:
 
 
 @dataclass(frozen=True)
-class ModelResponse:
-    """Raw text response returned by a text-only client.
-
-    This is a transport-level type used by TextProtocolAdapter's clients; the
-    agent loop consumes ModelTurn instead.
-    """
-
-    text: str
-    raw: Any = None
-    usage: dict[str, Any] | None = None
-
-
-@dataclass(frozen=True)
 class ToolCall:
     """A semantic tool invocation requested by the model."""
 
     id: str
     name: str
     arguments: dict[str, Any]
-
-
-@dataclass(frozen=True)
-class ParsedResponse:
-    """Validated text-protocol response produced by the response parser."""
-
-    kind: str
-    thought: str = ""
-    final: str | None = None
-    tool_calls: tuple[ToolCall, ...] = ()
-    recovered: bool = False
 
 
 @dataclass(frozen=True)
