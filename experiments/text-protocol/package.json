@@ -1,0 +1,14 @@
+{
+  "name": "herald-experiment-text-protocol",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "文本协议实验室：在只有 role/content 的 chat API 上验证 agent 的实现路径",
+  "engines": {
+    "node": ">=24.0.0"
+  },
+  "scripts": {
+    "test": "node --test --test-isolation=none",
+    "collect": "node scripts/collect-corpus.ts"
+  }
+}
