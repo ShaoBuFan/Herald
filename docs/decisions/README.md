@@ -72,13 +72,33 @@
 - **问题**：成本估算只看 token 数，还是也算提示模板的调用次数？
 - **证据**：[`react-prehistory.md`](../research/react-prehistory.md) §2.6（Zero-shot CoT 是两次调用，论文自己把它与 few-shot 的示例工程做了明确交换）；§7 第 7 条
 
-## 四、仓库事务（与论文研究无关）
+## 四、chatcli 与仓库事务（与论文研究无关）
 
 ### chatcli 英文 docstring 是否翻译
 
 - **分歧**：chatcli 回迁代码的 docstring 与注释基本是英文（仅 `model.py` 有中文注释），与「注释与文档语言：中文」的仓库约定冲突。
 - **候选方向**：A. 全部翻译为中文；B. 保持原样，新增注释用中文；C. 保持原样且不做约定。
 - **证据**：`../AGENTS.md` 第 7 节；`chatcli/sdk/` 下 15 个文件的 docstring 为英文。
+
+### 0006. chatcli 文本协议层（TextChatClient + TextProtocolAdapter）要不要撤并
+
+- **状态**：作者已定方向 A，两度收紧边界（2026-10-24 执行）——先撤并包装层，再把 codec 移出 SDK，最终 codec 并入 `MattermostModel` 所在的 `app/adapters/mattermost.py`：文本协议是 Mattermost「只有 role/content」这一约束的适配手段，不设独立模块；SDK 只保留循环、契约、错误类型与默认实现。ADR 正文（否决方案与代价）待作者撰写——被否决的方案已有三个（包装层、SDK 内纯函数、app 内独立模块）。
+
+- **分歧**：文本编解码需不需要独立成「文本进、文本出」的适配层？还是 MattermostModel 直接实现 ModelAdapter、编解码降为纯函数？
+- **候选方向**：
+  - A. 撤并：MattermostModel 加可注入 transport、直接实现 ModelAdapter，渲染/解析留在 SDK 作纯函数（对齐 OpenAI 适配器的「纯函数 + 注入 transport」模式）
+  - B. 维持现状：保留 TextChatClient 协议与包装层，等第二个文本-only API 出现再议
+- **证据**：`TextChatClient` 生产实现仅 `MattermostModel` 一个（`chatcli/sdk/agent_sdk/text_protocol.py`）；`MattermostModel` 直连 urllib、无可注入点（`chatcli/sdk/app/model.py`），编解码路径的离线测试目前完全依赖 `ScriptedTextClient` 这条缝（`chatcli/sdk/test_agent_sdk.py` 的 `TextProtocolAdapterTests`）；OpenAI 适配器的对照模式见 `chatcli/sdk/app/openai_common.py` 与 `chat_completions.py` 的 transport 注入；`experiments/text-protocol/README.md` 计划产出第 4 条正面对「文本协议下 LlmAdapter 边界」提问，其实验结论与本条互相影响。
+- **注意**：撤并不是删缝，是把缝从文本层挪到传输层——任一方案都得回答「离线测试从哪注入」。
+
+### 0007. `ToolExecutor.list_tools` 要不要改为逐轮重读（渐进式工具披露的前提）
+
+- **分歧**：工具清单目前按 run 开始的快照生效；要不要改为每轮重读，给渐进式披露（模型可见集合随 run 进行而增长）留出机制？
+- **候选方向**：
+  - A. 维持现状：当前只有四个工具，逐轮重读暂无消费者
+  - B. 逐轮重读：SDK 不加披露功能，披露策略是 `ToolExecutor` 实现内部的状态机（如带 `reveal()` 的注册表 + 一个 discover 工具）；循环守卫改为对「本次请求实际展示的清单」生效
+- **证据**：`chatcli/sdk/agent_sdk/agent.py` 的快照守卫与 `test_agent_sdk.py` 的 `ToolSnapshotTests`；`AGENTS.md` §8 为 MCP / Skills 预留的接缝（大工具清单是渐进式披露的真实动机，Claude Code 的 Skills 是其典型形态）；Mattermost 侧每轮重渲染 system，B 无额外成本
+- **注意**：B 会翻转 0006 伴生语义「中途注册的工具对本次 run 不可见」；但「守卫验证的是模型看到的清单而非存在的清单」这条不变量在两个方案下都成立——未揭示的工具即使被幻觉点名也会被拦下回灌。
 
 ---
 
