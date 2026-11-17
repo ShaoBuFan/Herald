@@ -222,7 +222,7 @@ CLI 跑顺之后再做，当作独立的前端学习课题（React + Vite + SSE 
 
 ### 并行轨道：chatcli 与实验室
 
-- **chatcli**：`sdk/` 已入库，42 个测试全部离线通过。定位与待办见 [`chatcli/README.md`](chatcli/README.md)（`plan.md` 未补、原项目其余目录尚未回迁）。
+- **chatcli**：`sdk/` 已入库，81 个测试全部离线通过。定位与待办见 [`chatcli/README.md`](chatcli/README.md)（`plan.md` 未补、原项目其余目录尚未回迁）。
 - **实验室**（`experiments/`）：里程碑与删除条件写在各实验自己的 README，当前只有 [`text-protocol`](experiments/text-protocol/README.md)（文本 JSON 协议可行性）。
 
 ---
@@ -257,7 +257,7 @@ CLI 跑顺之后再做，当作独立的前端学习课题（React + Vite + SSE 
 
 **Herald 主体尚未搭建，暂无命令。** 仓库内已有的命令：
 
-chatcli（Python 3.13，测试离线，实测 42 例通过）：
+chatcli（Python 3.13，测试离线，实测 81 例通过）：
 
 ```bash
 cd chatcli

@@ -1,7 +1,13 @@
 from __future__ import annotations
 
-from .adapters.mattermost import MattermostModel
-from .commands import choose_model, handle_save, handle_session, send_to_ai
+from .adapters.mattermost import MattermostModel, build_default_prompt_registry
+from .commands import (
+    choose_model,
+    handle_save,
+    handle_session,
+    send_to_ai,
+    show_prompt,
+)
 from .config import APP_DATA_DIR, PROJECT_ROOT, SESSIONS_DIR, AppState, load_config
 from .display.console import console
 from .session.store import SessionStore
@@ -10,32 +16,62 @@ from .tools import create_file_tools
 
 def show_help():
     console.heading("命令说明")
-    for command, description in (("/help", "获得命令帮助"), ("/reload", "加载历史对话"), ("/clear", "清空对话历史"), ("/save", "保存对话"), ("/model", "切换模型"), ("/usage", "查看用量"), ("/user", "查看用户"), ("/exit", "退出")):
+    commands = (
+        ("/help", "获得命令帮助"),
+        ("/reload", "加载历史对话"),
+        ("/clear", "清空对话历史"),
+        ("/save", "保存对话"),
+        ("/model", "切换模型"),
+        ("/prompt", "查看 system prompt"),
+        ("/usage", "查看用量"),
+        ("/user", "查看用户"),
+        ("/exit", "退出"),
+    )
+    for command, description in commands:
         console.write(f"{command:<9} {description}")
 
 
 def read_input():
     console.user_prompt()
     first = console.read_line()
-    if first.startswith("/"):
-        return first
+    if first.strip().startswith("/"):
+        console.input_box_end()
+        return first.strip()
     lines = [first]
     while True:
+        console.continuation_prompt()
         line = console.read_line()
         if not line.strip():
             break
         lines.append(line)
+    console.input_box_end()
     return "\n".join(lines)
 
 
 def main():
     config = load_config()
     state = AppState(config)
-    mattermost = MattermostModel(state, config)
+    # prompt 片段在这里组合；需要项目级规则时在这里 registry.register(...)
+    prompt_registry = build_default_prompt_registry()
+    mattermost = MattermostModel(
+        state, config, prompt_registry=prompt_registry
+    )
     model = mattermost
     tools = create_file_tools(PROJECT_ROOT)
     store = SessionStore(SESSIONS_DIR)
-    console.print_box([f"{console.ORANGE}chatCLI SDK{console.RESET}", f"model    {state.current_model_name}", f"workspace {PROJECT_ROOT.name}", "", f"Type {console.YELLOW}/help{console.RESET} for commands"])
+    console.print_box(
+        [
+            f"{console.ORANGE}✻{console.RESET} "
+            f"{console.BOLD}chatCLI{console.RESET}",
+            f"model    {state.current_model_name}",
+            f"cwd      {PROJECT_ROOT}",
+            f"prompt   {len(prompt_registry.sections())} sections · "
+            f"{len(tools.list_tools())} tools",
+            "input    多行输入，空行发送",
+            "",
+            f"Type {console.YELLOW}/help{console.RESET} for commands",
+        ]
+    )
     while True:
         try:
             text = read_input()
@@ -55,6 +91,8 @@ def main():
                 handle_session(store)
             elif text == "/model":
                 choose_model(state, mattermost)
+            elif text == "/prompt":
+                show_prompt(prompt_registry, tools, config.system_prompt)
             elif text == "/usage":
                 console.info(str(mattermost.get_usage()))
             elif text == "/user":

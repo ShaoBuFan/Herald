@@ -1,29 +1,93 @@
 from __future__ import annotations
 
+import time
+
 from sdk.agent_sdk import Agent, AgentConfig
 
 from .config import RESPONSE_PATH
 from .display.console import console
+from .prompt import PromptContext, PromptRegistry
+
+
+_SPINNER_WORDS = ("Thinking", "Pondering", "Working", "Checking")
 
 
 def send_to_ai(text, state, config, model, tools, store):
-    started = False
-
     def render(event):
-        nonlocal started
-        if event.type == "thought":
-            console.reasoning(event.data["content"])
-        elif event.type == "tool_call":
-            if not started:
-                # console.tool_calls_started()
-                started = True
-            console.tool_call(event.data["tool"], event.data["arguments"])
+        kind = event.type
+        data = event.data
 
-    agent = Agent(model, tools, store, AgentConfig(system_prompt=config.system_prompt), render)
-    result = agent.run(text)
-    console.ai_answer("", result.final)
+        if kind == "model_request":
+            round_index = data.get("round", 1)
+            word = _SPINNER_WORDS[(round_index - 1) % len(_SPINNER_WORDS)]
+            console.start_spinner(f"{word}…")
+            return
+
+        console.stop_spinner()
+        if kind == "parse_recovered":
+            console.parse_recovered()
+        elif kind == "thought":
+            console.reasoning(data.get("content", ""))
+        elif kind == "tool_call":
+            console.tool_call(
+                data.get("tool", ""),
+                data.get("arguments") or {},
+            )
+        elif kind == "tool_result":
+            console.tool_result(
+                data.get("tool", ""),
+                data.get("data"),
+                data.get("error"),
+            )
+        elif kind == "retry":
+            console.retry(
+                data.get("attempt", 1),
+                data.get("remaining", 0),
+                data.get("code", "invalid_response"),
+            )
+
+    started_at = time.monotonic()
+    agent = Agent(
+        model,
+        tools,
+        store,
+        AgentConfig(system_prompt=config.system_prompt),
+        render,
+    )
+    try:
+        result = agent.run(text)
+    finally:
+        console.stop_spinner()
+
+    elapsed = time.monotonic() - started_at
+    if not console.consume_streamed():
+        console.ai_answer(result.final)
+    console.summary(result.rounds, elapsed)
     RESPONSE_PATH.parent.mkdir(parents=True, exist_ok=True)
     RESPONSE_PATH.write_text(result.final, encoding="utf-8")
+
+
+def show_prompt(registry: PromptRegistry, tools, system: str) -> None:
+    context = PromptContext(system=system, tools=tools.list_tools())
+    console.heading("当前 system prompt", "🧩")
+
+    shown = 0
+    for section in registry.sections():
+        if not section.enabled(context):
+            continue
+        text = section.render(context).strip()
+        if not text:
+            continue
+        console.write(
+            f"{console.GRAY}── {section.name} "
+            f"(order={section.order}) ──{console.RESET}"
+        )
+        console.write(text)
+        console.write()
+        shown += 1
+
+    rendered = registry.render(context)
+    console.muted(f"{shown} sections · {len(rendered)} chars")
 
 
 def choose_model(state, model):

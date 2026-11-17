@@ -64,7 +64,7 @@ $env:DEEPSEEK_API_KEY = "..."          # bash: export DEEPSEEK_API_KEY=...
 python mini_agent.py "读一下 README.md 并总结" --workspace ..
 ```
 
-离线测试（不联网，`chat` 打桩）：`python -m unittest test_mini_agent -v`（22 个用例）。
+离线测试（不联网，`chat` 打桩）：`python -m unittest test_mini_agent -v`（27 个用例）。
 
 这是实验原型，不是 Herald 的正式实现；细节与限制见 [`python/README.md`](python/README.md)。
 
