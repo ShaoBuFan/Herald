@@ -1152,7 +1152,9 @@ class InputBoxTests(unittest.TestCase):
         self.assertEqual("hello\nworld", text)
         output = Console._ANSI_RE.sub("", buffer.getvalue())
         self.assertIn("╭─", output)
+        self.assertIn("╮", output)
         self.assertIn("╰", output)
+        self.assertIn("╯", output)
         self.assertIn("> ", output)
 
 

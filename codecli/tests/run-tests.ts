@@ -1,0 +1,11 @@
+import "./core/agent.test.js";
+import "./prompt.test.js";
+import "./tools.test.js";
+import "./session.test.js";
+import "./config.test.js";
+import "./env.test.js";
+import "./adapters/openai.test.js";
+import "./adapters/mattermost.test.js";
+import "./ui/format.test.js";
+import "./ui/input.test.js";
+import "./ui/app.test.js";

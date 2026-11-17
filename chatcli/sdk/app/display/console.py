@@ -43,7 +43,7 @@ class Console:
         width = self._rule_width()
         self.write(
             f"\n{self.GRAY}╭─ {self.ORANGE}You{self.RESET}"
-            f"{self.GRAY} {'─' * (width - 7)}{self.RESET}"
+            f"{self.GRAY} {'─' * (width - 8)}╮{self.RESET}"
         )
         self.write(f"{self.ORANGE}>{self.RESET} ", end="", flush=True)
 
@@ -52,7 +52,9 @@ class Console:
 
     def input_box_end(self) -> None:
         width = self._rule_width()
-        self.write(f"{self.GRAY}╰{'─' * (width - 1)}{self.RESET}")
+        self.write(
+            f"{self.GRAY}╰{'─' * (width - 2)}╯{self.RESET}"
+        )
 
     def heading(self, title: str, icon: str = "") -> None:
         self.write()

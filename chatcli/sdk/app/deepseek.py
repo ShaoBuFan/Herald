@@ -80,8 +80,8 @@ def main() -> None:
     if not api_key:
         console.error("未找到 DEEPSEEK_API_KEY")
         console.info(
-            "请在 chatcli/.env 或仓库根目录 .env 中填写，"
-            "或 export DEEPSEEK_API_KEY=..."
+            "请在项目根目录的 .env 中填写 DEEPSEEK_API_KEY"
+            "（可参考 .env.example），或 export DEEPSEEK_API_KEY=..."
         )
         return
 

@@ -1,5 +1,7 @@
 # chatcli
 
+> **Legacy：** 本目录是 Python 参考实现，已由 [`../codecli`](../codecli/)（TypeScript + React Ink，产品名 **CodeCLI**）接替活跃开发。这里保留用于对照内核语义与回归测试，不再新增功能；81 个离线测试仍应保持通过。
+
 一个微型 Agent 子项目，随 Herald 一起持续演进。
 
 ## 与 Herald 的关系
@@ -92,9 +94,9 @@ PowerShell 对应写法：`$env:PYTHONPATH="chatcli"; python -m sdk.app.deepseek
 一次请求的典型输出：
 
 ```text
-╭─ You ─────────────────────────────────────────
+╭─ You ─────────────────────────────────────────╮
 > 读一下 README 并总结
-╰───────────────────────────────────────────────
+╰───────────────────────────────────────────────╯
 
 ✻ 需要先读 README。
 ⏺ Read(README.md)

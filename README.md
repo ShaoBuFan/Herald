@@ -40,16 +40,19 @@ ZCode、Claude Code、Codex 等编程 agent 已能满足日常开发需求。但
 - **AI 助手负责**：环境配置、测试替身编写、依赖问题排查、代码审查，以及在作者停滞时提供思路而非实现。
 - **设计讨论由双方共同进行。**
 
+> 例外记录：`codecli/` 是作者明确授权 AI 全量移植的 TS/Ink 参考实现（一次性的对照基线），不改变“Herald 主体核心逻辑由作者编写”的原则；其设计仍需作者 review 与复述验收。
+
 这使开发速度低于完全由 AI 生成的同类项目，属于预期内的取舍。
 
 ## 当前状态
 
-Herald 主体处于调研阶段，尚无 TypeScript 代码，技术选型与代码目录尚未确定。仓库现在包含三个部分：
+Herald 主体仍在调研与设计阶段，技术选型与代码目录尚未确定。CodeCLI 是并行推进的 TS/Ink 参考实现，不等于 Herald 主体已完成。仓库现在包含四个部分：
 
 | 位置 | 内容 |
 |---|---|
 | [`docs/`](docs/) | Herald 主体的研究工作区：对照研究、决策记录与论文引用，四层分工见 [`docs/README.md`](docs/README.md) |
-| [`chatcli/`](chatcli/) | Python 子项目：可运行的最小 Agent 参照实现（[`chatcli/README.md`](chatcli/README.md)），测试全部离线通过 |
+| [`codecli/`](codecli/) | **活跃参考实现**：TypeScript + React Ink，产品名 CodeCLI；111 个离线测试（[`codecli/README.md`](codecli/README.md)） |
+| [`chatcli/`](chatcli/) | **Legacy 参考实现**：Python，可运行的最小 Agent；81 个离线测试（[`chatcli/README.md`](chatcli/README.md)） |
 | [`experiments/`](experiments/) | 实验区，每个实验可整体删除；当前有 `text-protocol` 一个实验 |
 
 协作约定与路线图的完整版在 [`AGENTS.md`](AGENTS.md)。

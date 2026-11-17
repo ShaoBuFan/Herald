@@ -8,12 +8,13 @@
 
 ## 1. 这个仓库是什么
 
-仓库里有三个分工不同的部分。硬性规则（第 2 节）与决策记录（`docs/decisions/`）对三者一体适用——**决策集中，实现散布**：
+仓库里有四个分工不同的部分。硬性规则（第 2 节）与决策记录（`docs/decisions/`）对四者一体适用——**决策集中，实现散布**：
 
 | 部分 | 位置 | 是什么 |
 |---|---|---|
 | Herald 主体 | 代码目录尚未建立，当前工作区在 [`docs/`](docs/) | 从零构建的 TypeScript agent harness，路线图（第 4 节）的主体 |
-| chatcli | [`chatcli/`](chatcli/) | Python 子项目：可运行的最小 Agent 参照实现，与主体并行演进、设计取舍相互对照 |
+| CodeCLI | [`codecli/`](codecli/) | **活跃参考实现**：chatcli 的 TypeScript + React Ink 重写，111 个离线测试；本次移植由作者明确授权 AI 全量完成 |
+| chatcli | [`chatcli/`](chatcli/) | **Legacy 参考实现**：Python 版最小 Agent，81 个离线测试；保留用于对照与回归，不再新增功能 |
 | 实验室 | [`experiments/`](experiments/) | 可整体删除的实验区，当前只有 `text-protocol` 一个实验 |
 
 ### Herald 主体
@@ -33,6 +34,8 @@
 > 这一节是本文件最重要的部分。**任何 AI 助手在本仓库动手前必须先读这一节。**
 
 > **适用范围是整个仓库**，不只是 Herald 主体。chatcli 与实验室同样是学习的一部分：chatcli 已有的核心（agent 循环、文本协议 codec、流式重组）出自作者之手，此后的修改与扩展同样受 2.1 约束。
+>
+> **已记录的例外**：`codecli/` 的初始移植由作者明确授权 AI 全量完成（核心 + UI），因此不受 2.1 的“AI 不得代劳”限制。该授权针对这次移植；之后对 CodeCLI 的设计性修改仍应先与作者讨论，除非作者再次明确授权。CodeCLI 是参考基线，不替代作者对 Herald 主体与相关设计的复述验收。
 
 ### 2.1 核心逻辑由人类作者编写，AI 不得代劳
 
@@ -220,9 +223,10 @@ AI 做 review 时**指出问题和权衡，而不是顺手改掉**。发现问�
 
 CLI 跑顺之后再做，当作独立的前端学习课题（React + Vite + SSE + REST），不跟内核设计混在一起。
 
-### 并行轨道：chatcli 与实验室
+### 并行轨道：CodeCLI、chatcli 与实验室
 
-- **chatcli**：`sdk/` 已入库，81 个测试全部离线通过。定位与待办见 [`chatcli/README.md`](chatcli/README.md)（`plan.md` 未补、原项目其余目录尚未回迁）。
+- **CodeCLI**：`codecli/` 已完成 Python chatcli 的 TypeScript + React Ink 全量移植，111 个测试全部离线通过；覆盖 agent 循环、OpenAI 兼容适配器（含 SSE）、Mattermost XML 协议、prompt 注册表、文件工具、会话迁移与 Ink UI。定位与已知差异见 [`codecli/README.md`](codecli/README.md)。
+- **chatcli**：`sdk/` 已入库，81 个测试全部离线通过。**Legacy**，保留为 Python 对照实现；定位见 [`chatcli/README.md`](chatcli/README.md)（`plan.md` 未补、原项目其余目录尚未回迁）。
 - **实验室**（`experiments/`）：里程碑与删除条件写在各实验自己的 README，当前只有 [`text-protocol`](experiments/text-protocol/README.md)（文本 JSON 协议可行性）。
 
 ---
@@ -232,7 +236,8 @@ CLI 跑顺之后再做，当作独立的前端学习课题（React + Vite + SSE 
 | 位置 | 内容 | 状态 |
 |---|---|---|
 | [`docs/`](docs/) | Herald 主体的工作区，四层分工见 2.6 | 主要工作区 |
-| [`chatcli/`](chatcli/) | Python 子项目：`sdk/`（框架无关的 agent 运行时 + CLI 应用 + 离线测试） | 可运行 |
+| [`codecli/`](codecli/) | TypeScript + React Ink 参考实现：`src/core/`（零 Ink 依赖的 agent 内核）+ `src/app/`（适配器、工具、会话、Ink UI）+ 离线测试 | 活跃 |
+| [`chatcli/`](chatcli/) | Python 参考实现：`sdk/`（框架无关的 agent 运行时 + CLI 应用 + 离线测试） | Legacy |
 | [`experiments/`](experiments/) | 实验室。**每个实验都可整体删除**，约定、里程碑与删除条件写在实验自己的 README | `text-protocol` 进行中 |
 | 根目录 | `README.md`、`AGENTS.md`、`LICENSE`、`.gitignore`、`.gitattributes` | — |
 
@@ -247,9 +252,9 @@ CLI 跑顺之后再做，当作独立的前端学习课题（React + Vite + SSE 
 
 **不要提前建空目录。** 目录等到有实际内容时再建，并在其中放一份 `README.md` 说明职责——git 不跟踪空目录，而且空目录会诱导后来者猜测（或编造）它的用途。
 
-**Herald 主体的代码目录尚未确定。** 等作者自己定下技术选型和模块划分之后再写这一节，不要提前固化。chatcli 与实验室已有各自的目录约定，不受此条影响。
+**Herald 主体的代码目录尚未确定。** 等作者自己定下技术选型和模块划分之后再写这一节，不要提前固化。CodeCLI、chatcli 与实验室已有各自的目录约定，不受此条影响。
 
-先记一条原则：**如果最终拆出内核层，内核的运行时依赖应尽量保持为零。** 这不是洁癖——它会逼你自己写 SSE 解析、自己处理流式工具调用重组，而这些恰恰是最值得亲手写一遍的东西。chatcli 的 `agent_sdk` 已按此实现（仅 Python 标准库）。
+先记一条原则：**如果最终拆出内核层，内核的运行时依赖应尽量保持为零。** 这不是洁癖——它会逼你自己写 SSE 解析、自己处理流式工具调用重组，而这些恰恰是最值得亲手写一遍的东西。chatcli 的 `agent_sdk` 已按此实现（仅 Python 标准库）；CodeCLI 的 `src/core/` 同样不依赖 Ink/React，只用 Node 标准库。
 
 ---
 
@@ -257,7 +262,19 @@ CLI 跑顺之后再做，当作独立的前端学习课题（React + Vite + SSE 
 
 **Herald 主体尚未搭建，暂无命令。** 仓库内已有的命令：
 
-chatcli（Python 3.13，测试离线，实测 81 例通过）：
+CodeCLI（Node >= 20，pnpm，实测 111 例通过）：
+
+```bash
+cd codecli
+pnpm install
+pnpm dev:deepseek                                  # DeepSeek/OpenAI 兼容入口
+pnpm dev                                           # Mattermost 入口
+pnpm test                                          # 全部测试（离线）
+pnpm typecheck                                     # tsc --noEmit
+pnpm probe                                         # 终端按键诊断
+```
+
+chatcli（Legacy；Python 3.13，测试离线，实测 81 例通过）：
 
 ```bash
 cd chatcli
@@ -301,11 +318,20 @@ node --test --test-isolation=none
 - **包管理**：pnpm。
 - **原生模块**：**禁用**。本机 node-gyp 未配置（MSVC 在 D 盘且不在 PATH），任何需要本地编译的依赖（`better-sqlite3`、`node-pty`、`tiktoken` 等）一律不用。持久化用 JSONL 而非 SQLite，正是出于此。
 
-**chatcli**
+**CodeCLI**
+
+- **语言**：TypeScript，ESM（`"type": "module"`）。导入本地模块必须带 `.js` 后缀。
+- **严格模式**：`strict` + `noUncheckedIndexedAccess`，全量开启。
+- **运行时**：Node >= 20（当前开发环境实测 Node 24）。Ink 6 与 React 19 是 UI 层依赖。
+- **包管理**：pnpm。依赖安装脚本的授权配置放在 `codecli/pnpm-workspace.yaml`（`allowBuilds` / `onlyBuiltDependencies`），避免 `ERR_PNPM_IGNORED_BUILDS`。
+- **分层**：`src/core/` 与 app 逻辑只用 Node 标准库；Ink/React 只允许出现在 `src/app/ui/` 与入口文件。这样核心语义可以脱离终端 UI 测试。
+- **测试**：`node:test` + `tsx`，全部离线；`tsc --noEmit` 是独立门禁。
+
+**chatcli（Legacy）**
 
 - **语言**：Python，开发与测试环境 3.13（语法层面最低 3.10，PEP 604）。
 - **依赖**：仅标准库，零第三方依赖。
-- **测试**：离线可跑，不依赖 API key 与网络。
+- **测试**：离线可跑，不依赖 API key 与网络。不再新增功能。
 
 **实验室（experiments/）**
 
@@ -324,6 +350,8 @@ node --test --test-isolation=none
 - 工作流引擎
 - 多用户 / 远程服务 / 云沙箱
 - 终端 TUI（富交互）
+
+> **例外**：CodeCLI 是明确立项的富终端 UI 参考实现，不属于 Herald 主体的范围蔓延；Herald 主体自身仍不把 TUI 列为目标。
 
 > **但接缝要留好**：工具注册表就是 MCP 的挂载点，系统提示装配就是 Skills 的挂载点，`LlmAdapter` 就是新 provider 的挂载点。
 
