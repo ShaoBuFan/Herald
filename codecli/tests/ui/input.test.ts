@@ -59,9 +59,10 @@ test("parseCommand rejects non-commands", () => {
   assert.equal(parseCommand("  "), null);
 });
 
-test("input hints document double-Enter and Ctrl+J", () => {
+test("input hints document double-Enter and mode switching", () => {
   const text = INPUT_HINTS.join("\n");
   assert.match(text, /双击 Enter/);
-  assert.match(text, /Ctrl\+J/);
+  assert.match(text, /Shift\+Tab/);
+  assert.match(text, /Esc/);
   assert.match(text, /\/help/);
 });

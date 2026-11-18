@@ -4,13 +4,15 @@ import { MattermostModel } from "./app/adapters/mattermost-model.js";
 import { buildDefaultPromptRegistry } from "./app/adapters/mattermost-protocol.js";
 import {
   AppState,
+  loadConfig,
+} from "./app/adapters/mattermost-config.js";
+import {
   PROJECT_ROOT,
   SESSIONS_DIR,
-  loadConfig,
   saveResponse,
-} from "./app/config.js";
+} from "./app/paths.js";
 import { SessionStore } from "./app/session/store.js";
-import { createFileTools } from "./app/tools/index.js";
+import { createWorkspaceTools } from "./app/tools/index.js";
 import { App, type AppHost } from "./app/ui/App.js";
 import { AgentConfig } from "./core/index.js";
 
@@ -24,7 +26,7 @@ function main(): void {
     undefined,
     { promptRegistry },
   );
-  const tools = createFileTools(PROJECT_ROOT);
+  const tools = createWorkspaceTools(PROJECT_ROOT);
   const store = new SessionStore(SESSIONS_DIR);
 
   const host: AppHost = {
@@ -35,10 +37,8 @@ function main(): void {
     promptRegistry,
     sessionStore: store,
     listModels: () =>
-      state.config.models.map((model, index) => ({
-        label: `${index + 1}. ${model.NICKNAME} (${
-          model.MODEL_NAME
-        })`,
+      state.config.models.map((model) => ({
+        label: `${model.NICKNAME} (${model.MODEL_NAME})`,
       })),
     selectModel: (index) => {
       const model = state.config.models[index];

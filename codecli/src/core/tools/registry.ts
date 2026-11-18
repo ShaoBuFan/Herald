@@ -4,10 +4,14 @@ import type {
   JsonObject,
   ToolSchema,
 } from "../models.js";
-import type { ToolExecutor } from "../protocols.js";
+import type {
+  ToolContext,
+  ToolExecutor,
+} from "../protocols.js";
 
 export type ToolHandler = (
   arguments_: Record<string, unknown>,
+  context?: ToolContext,
 ) => Promise<unknown> | unknown;
 
 export class Tool {
@@ -15,12 +19,14 @@ export class Tool {
   readonly description: string;
   readonly parameters: JsonObject;
   readonly handler: ToolHandler;
+  readonly kind: string;
 
   constructor(
     name: string,
     description: string,
     parameters: JsonObject,
     handler: ToolHandler,
+    kind = "unknown",
   ) {
     if (!name.trim()) {
       throw new Error("tool name must not be empty");
@@ -32,6 +38,7 @@ export class Tool {
     this.description = description;
     this.parameters = parameters;
     this.handler = handler;
+    this.kind = kind;
   }
 
   schema(): ToolSchema {
@@ -75,6 +82,10 @@ export class ToolRegistry implements ToolExecutor {
     return tool;
   }
 
+  kindOf(name: string): string {
+    return this.get(name).kind;
+  }
+
   listTools(): ToolSchema[] {
     return [...this.tools.values()].map((tool) => tool.schema());
   }
@@ -82,6 +93,7 @@ export class ToolRegistry implements ToolExecutor {
   async execute(
     name: string,
     arguments_: Record<string, unknown>,
+    context?: ToolContext,
   ): Promise<unknown> {
     if (
       typeof arguments_ !== "object" ||
@@ -93,7 +105,7 @@ export class ToolRegistry implements ToolExecutor {
 
     const tool = this.get(name);
     try {
-      return await tool.handler(arguments_);
+      return await tool.handler(arguments_, context);
     } catch (error) {
       if (error instanceof ToolExecutionError) {
         throw error;

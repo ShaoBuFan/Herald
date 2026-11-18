@@ -13,6 +13,7 @@ import {
   turnFromTextResponse,
   type TextMessage,
 } from "./mattermost-protocol.js";
+import { createTimeoutSignal } from "./signal.js";
 
 export interface MattermostAccount {
   CSRF_TOKEN: string;
@@ -36,6 +37,7 @@ export type MattermostTransport = (
   method: string,
   path: string,
   payload: unknown,
+  signal?: AbortSignal,
 ) => Promise<unknown>;
 
 export interface MattermostOptions {
@@ -73,8 +75,8 @@ export class MattermostModel implements ModelAdapter {
     this.config = config;
     this.transport =
       transport ??
-      ((method, path, payload) =>
-        this.request(method, path, payload));
+      ((method, path, payload, signal) =>
+        this.request(method, path, payload, signal));
     this.promptRegistry =
       options.promptRegistry ??
       buildDefaultPromptRegistry();
@@ -100,6 +102,7 @@ export class MattermostModel implements ModelAdapter {
     method: string,
     path: string,
     payload: unknown,
+    signal?: AbortSignal,
   ): Promise<unknown> {
     const url = `${this.config.base_url}${path}`;
     const body =
@@ -110,7 +113,7 @@ export class MattermostModel implements ModelAdapter {
       method,
       headers: this.headers(),
       body,
-      signal: AbortSignal.timeout(240_000),
+      signal: createTimeoutSignal(240, signal),
     });
 
     if (!response.ok) {
@@ -124,7 +127,7 @@ export class MattermostModel implements ModelAdapter {
 
   async complete(
     request: ModelRequest,
-    _signal?: AbortSignal,
+    signal?: AbortSignal,
   ): Promise<ModelTurn> {
     const account = this.state.current_account;
     const key = this.state.current_model_key;
@@ -157,6 +160,7 @@ export class MattermostModel implements ModelAdapter {
       "POST",
       `/plugins/aslead-chatgpt/${key}?${query}`,
       payload,
+      signal,
     );
     const message = isRecord(result)
       ? result["respMessage"]

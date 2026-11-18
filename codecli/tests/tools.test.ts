@@ -12,12 +12,19 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 
 import {
-  createFileTools,
+  createWorkspaceTools,
+  editFile,
+  globFiles,
+  globToRegExp,
   listFiles,
+  normalizeTodos,
   readFile,
+  runBash,
   safePath,
   searchText,
+  todosFromToolResult,
   writeFile,
+  writeTodos,
 } from "../src/app/tools/index.js";
 
 async function withTempDir(
@@ -246,10 +253,179 @@ test("searchText finds lines, honors limit, and skips invalid UTF-8", async () =
   });
 });
 
-test("createFileTools registers the standard tools in order", () => {
-  const registry = createFileTools(process.cwd());
+test("createWorkspaceTools registers the standard tools in order", () => {
+  const registry = createWorkspaceTools(process.cwd());
   assert.deepEqual(
     registry.listTools().map((tool) => tool.name),
-    ["list_files", "read_file", "search_text", "write_file"],
+    [
+      "list_files",
+      "glob",
+      "read_file",
+      "search_text",
+      "write_file",
+      "edit",
+      "bash",
+      "todo_write",
+    ],
   );
+  assert.equal(registry.kindOf("read_file"), "read");
+  assert.equal(registry.kindOf("write_file"), "write");
+  assert.equal(registry.kindOf("bash"), "execute");
+  assert.equal(registry.kindOf("todo_write"), "meta");
+});
+
+test("editFile replaces exactly once or all occurrences", async () => {
+  await withTempDir(async (root) => {
+    const file = path.join(root, "a.txt");
+    await fsWriteFile(file, "hello world hello", "utf8");
+
+    const one = await editFile(root, {
+      path: "a.txt",
+      old_string: "hello",
+      new_string: "hi",
+    });
+    assert.deepEqual(one, {
+      error:
+        "old_string matches 2 places; set replace_all or include more context",
+    });
+
+    const all = await editFile(root, {
+      path: "a.txt",
+      old_string: "hello",
+      new_string: "hi",
+      replace_all: true,
+    });
+    assert.equal(all["replacements"], 2);
+    assert.equal(await fsReadFile(file, "utf8"), "hi world hi");
+
+    const missing = await editFile(root, {
+      path: "a.txt",
+      old_string: "absent",
+      new_string: "x",
+    });
+    assert.deepEqual(missing, { error: "old_string not found" });
+
+    const empty = await editFile(root, {
+      path: "a.txt",
+      old_string: "",
+      new_string: "x",
+    });
+    assert.deepEqual(empty, {
+      error: "old_string must not be empty",
+    });
+  });
+});
+
+test("globFiles supports **, basename patterns and limits", async () => {
+  await withTempDir(async (root) => {
+    await mkdir(path.join(root, "src", "nested"), {
+      recursive: true,
+    });
+    await fsWriteFile(path.join(root, "a.txt"), "a");
+    await fsWriteFile(path.join(root, "README.md"), "r");
+    await fsWriteFile(path.join(root, "src", "a.ts"), "a");
+    await fsWriteFile(path.join(root, "src", "nested", "b.ts"), "b");
+    await mkdir(path.join(root, "node_modules"), {
+      recursive: true,
+    });
+    await fsWriteFile(
+      path.join(root, "node_modules", "ignored.ts"),
+      "x",
+    );
+
+    const ts = await globFiles(root, { pattern: "**/*.ts" });
+    assert.deepEqual(
+      (ts["files"] as string[]).sort(),
+      ["src/a.ts", "src/nested/b.ts"].sort(),
+    );
+
+    const rootMd = await globFiles(root, { pattern: "*.md" });
+    assert.deepEqual(rootMd["files"], ["README.md"]);
+
+    const limited = await globFiles(root, {
+      pattern: "**/*.ts",
+      limit: 1,
+    });
+    assert.equal((limited["files"] as string[]).length, 1);
+    assert.equal(limited["truncated"], true);
+
+    assert.equal(
+      globToRegExp("**/*.ts").test("src/a.ts"),
+      true,
+    );
+    assert.equal(globToRegExp("**/*.ts").test("a.ts"), true);
+    assert.equal(globToRegExp("src/*.tsx").test("src/a.ts"), false);
+  });
+});
+
+test("runBash returns stdout, exit code and truncation", async () => {
+  await withTempDir(async (root) => {
+    const ok = await runBash(root, {
+      command: 'node -e "console.log(42)"',
+    });
+    assert.equal(ok.exit_code, 0);
+    assert.equal(ok.stdout.trim(), "42");
+    assert.equal(ok.timed_out, false);
+    assert.equal(ok.aborted, false);
+
+    const failed = await runBash(root, {
+      command: 'node -e "process.exit(3)"',
+    });
+    assert.equal(failed.exit_code, 3);
+
+    const truncated = await runBash(root, {
+      command: 'node -e "console.log(\'x\'.repeat(2000))"',
+      max_output_bytes: 1024,
+    });
+    assert.equal(truncated.truncated, true);
+    assert.equal(
+      Buffer.byteLength(truncated.stdout, "utf8") <= 1024,
+      true,
+    );
+
+    await assert.rejects(
+      () => runBash(root, { command: "echo hi", cwd: "../" }),
+      /Path escapes project root/,
+    );
+  });
+});
+
+test("todo_write validates statuses and one in_progress", () => {
+  const todos = normalizeTodos([
+    { content: "a", status: "completed" },
+    { content: "b", status: "in_progress", activeForm: "doing b" },
+  ]);
+  assert.equal(todos.length, 2);
+  assert.equal(todos[1]?.activeForm, "doing b");
+
+  assert.throws(
+    () =>
+      normalizeTodos([
+        { content: "a", status: "in_progress" },
+        { content: "b", status: "in_progress" },
+      ]),
+    /at most one todo may be in_progress/,
+  );
+  assert.throws(
+    () => normalizeTodos([{ content: "", status: "pending" }]),
+    /content must be a non-empty string/,
+  );
+  assert.throws(
+    () => normalizeTodos([{ content: "a", status: "done" }]),
+    /status must be pending/,
+  );
+
+  const result = writeTodos({
+    todos: [{ content: "a", status: "pending" }],
+  });
+  assert.deepEqual(result["counts"], {
+    pending: 1,
+    in_progress: 0,
+    completed: 0,
+  });
+
+  const parsed = todosFromToolResult(result);
+  assert.equal(parsed?.length, 1);
+  assert.equal(parsed?.[0]?.content, "a");
+  assert.equal(todosFromToolResult(null), null);
 });

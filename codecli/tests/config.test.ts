@@ -14,7 +14,7 @@ import {
   AppConfig,
   AppState,
   loadConfig,
-} from "../src/app/config.js";
+} from "../src/app/adapters/mattermost-config.js";
 
 async function withTempDirs(
   callback: (cwd: string, appDataDir: string) => Promise<void>,

@@ -1,5 +1,7 @@
 import type { ReactNode } from "react";
-import { Box, Text } from "ink";
+import { Box, Text, useStdout } from "ink";
+
+import { MarkdownTable, parseTable } from "./Table.js";
 
 function inlineNodes(
   text: string,
@@ -65,12 +67,19 @@ function inlineNodes(
 export interface MarkdownProps {
   text: string;
   indent?: number;
+  widthOffset?: number;
 }
 
 export function Markdown({
   text,
   indent = 0,
+  widthOffset = 0,
 }: MarkdownProps): ReactNode {
+  const { stdout } = useStdout();
+  const columns = Math.max(
+    20,
+    (stdout?.columns ?? 80) - widthOffset - indent * 2,
+  );
   const rows: ReactNode[] = [];
   const padding = "  ".repeat(indent);
   const lines = text.split("\n");
@@ -92,7 +101,25 @@ export function Markdown({
     codeLines = null;
   };
 
-  for (const line of lines) {
+  for (let index = 0; index < lines.length; index += 1) {
+    const line = lines[index]!;
+
+    if (codeLines === null) {
+      const table = parseTable(lines, index);
+      if (table) {
+        rows.push(
+          <MarkdownTable
+            key={`table-${key}`}
+            table={table}
+            columns={columns}
+          />,
+        );
+        key += 1;
+        index = table.end - 1;
+        continue;
+      }
+    }
+
     if (line.trimStart().startsWith("```")) {
       if (codeLines === null) {
         codeLines = [];

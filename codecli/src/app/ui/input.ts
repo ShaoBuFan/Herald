@@ -36,5 +36,5 @@ export function parseCommand(
 
 export const INPUT_HINTS = [
   "Enter 换行 · 双击 Enter 发送",
-  "Shift+Enter / Ctrl+J 换行 · /help 查看命令 · /exit 退出",
+  "Shift+Tab 切换模式 · Esc 中断 · /help 查看命令",
 ] as const;

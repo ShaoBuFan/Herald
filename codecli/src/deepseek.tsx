@@ -2,21 +2,22 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { render } from "ink";
 
-import { ChatCompletionsModel } from "./app/adapters/chat-completions.js";
-import { SESSIONS_DIR, saveResponse } from "./app/config.js";
+import { StreamingChatCompletionsModel } from "./app/adapters/streaming-chat-completions.js";
+import { SESSIONS_DIR, saveResponse } from "./app/paths.js";
 import { loadEnvFiles } from "./app/env.js";
+import { LiveProgress } from "./app/progress.js";
 import {
   PromptRegistry,
   PromptSection,
 } from "./app/prompt/registry.js";
 import { SessionStore } from "./app/session/store.js";
-import { createFileTools } from "./app/tools/index.js";
+import { createWorkspaceTools } from "./app/tools/index.js";
 import { App, type AppHost } from "./app/ui/App.js";
 import { AgentConfig } from "./core/index.js";
 
 const NATIVE_SYSTEM_PROMPT =
   "你是一个在本地工作区里工作的编程 agent。" +
-  "你可以使用提供的工具读取、搜索、写入文件。" +
+  "你可以使用提供的工具读取、搜索、修改文件并运行命令。" +
   "先理解任务，再决定是否需要调用工具；可以多步推进。" +
   "回答使用中文，除非用户要求其他语言。";
 
@@ -25,7 +26,7 @@ function buildNativePromptRegistry(): PromptRegistry {
   registry.register(
     new PromptSection({
       name: "app_system",
-      render: () => NATIVE_SYSTEM_PROMPT,
+      render: (context) => context.system,
       order: 100,
     }),
   );
@@ -35,9 +36,11 @@ function buildNativePromptRegistry(): PromptRegistry {
 function main(): void {
   const here = path.dirname(fileURLToPath(import.meta.url));
   const projectRoot = path.resolve(here, "..");
+  const repositoryRoot = path.resolve(projectRoot, "..");
   loadEnvFiles([
     path.join(process.cwd(), ".env"),
     path.join(projectRoot, ".env"),
+    path.join(repositoryRoot, ".env"),
   ]);
 
   const apiKey = (process.env["DEEPSEEK_API_KEY"] ?? "").trim();
@@ -57,14 +60,19 @@ function main(): void {
     "deepseek-chat";
   const workspace = path.resolve(process.cwd());
 
-  const model = new ChatCompletionsModel({
+  const progress = new LiveProgress();
+  const promptRegistry = buildNativePromptRegistry();
+  const model = new StreamingChatCompletionsModel({
     baseUrl,
     apiKey,
     model: modelName,
+    promptRegistry,
+    onDelta: (text) => progress.delta(text),
+    onReasoningDelta: (text) => progress.reasoning(text),
+    onUsage: (usage) => progress.setUsage(usage),
   });
-  const tools = createFileTools(workspace);
+  const tools = createWorkspaceTools(workspace);
   const store = new SessionStore(SESSIONS_DIR);
-  const promptRegistry = buildNativePromptRegistry();
   const config = new AgentConfig({
     systemPrompt: NATIVE_SYSTEM_PROMPT,
   });
@@ -88,6 +96,7 @@ function main(): void {
       store={store}
       config={config}
       host={host}
+      progress={progress}
     />,
   );
 }

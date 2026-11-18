@@ -3,6 +3,7 @@ import type {
   ModelTurn,
 } from "../../core/models.js";
 import type { ModelAdapter } from "../../core/protocols.js";
+import type { PromptRegistry } from "../prompt/registry.js";
 import {
   DEFAULT_TIMEOUT,
   buildPayload,
@@ -13,11 +14,13 @@ import {
   turnFromChatResponse,
   type JsonTransport,
 } from "./openai-common.js";
+import { applyPromptRegistry } from "./prompt.js";
 
 export interface ChatCompletionsOptions {
   baseUrl?: string;
   apiKey?: string;
   model?: string;
+  promptRegistry?: PromptRegistry;
   transport?: JsonTransport;
   timeout?: number;
 }
@@ -27,6 +30,7 @@ export class ChatCompletionsModel implements ModelAdapter {
   readonly apiKey: string;
   readonly model: string;
   readonly timeout: number;
+  readonly promptRegistry?: PromptRegistry;
   readonly transport: JsonTransport;
 
   constructor(options: ChatCompletionsOptions = {}) {
@@ -39,6 +43,7 @@ export class ChatCompletionsModel implements ModelAdapter {
     this.apiKey = config.apiKey;
     this.model = config.model;
     this.timeout = options.timeout ?? DEFAULT_TIMEOUT;
+    this.promptRegistry = options.promptRegistry;
     this.transport =
       options.transport ??
       ((url, headers, payload, signal) =>
@@ -55,7 +60,11 @@ export class ChatCompletionsModel implements ModelAdapter {
     request: ModelRequest,
     signal?: AbortSignal,
   ): Promise<ModelTurn> {
-    const payload = buildPayload(this.model, request, {
+    const effective = applyPromptRegistry(
+      request,
+      this.promptRegistry,
+    );
+    const payload = buildPayload(this.model, effective, {
       stream: false,
     });
     const data = await this.transport(

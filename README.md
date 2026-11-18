@@ -51,7 +51,7 @@ Herald 主体仍在调研与设计阶段，技术选型与代码目录尚未确�
 | 位置 | 内容 |
 |---|---|
 | [`docs/`](docs/) | Herald 主体的研究工作区：对照研究、决策记录与论文引用，四层分工见 [`docs/README.md`](docs/README.md) |
-| [`codecli/`](codecli/) | **活跃参考实现**：TypeScript + React Ink，产品名 CodeCLI；111 个离线测试（[`codecli/README.md`](codecli/README.md)） |
+| [`codecli/`](codecli/) | **活跃参考实现**：TypeScript + React Ink，Claude Code 风格 UI，8 个工具、4 种权限模式，144 个离线测试（[`codecli/README.md`](codecli/README.md)） |
 | [`chatcli/`](chatcli/) | **Legacy 参考实现**：Python，可运行的最小 Agent；81 个离线测试（[`chatcli/README.md`](chatcli/README.md)） |
 | [`experiments/`](experiments/) | 实验区，每个实验可整体删除；当前有 `text-protocol` 一个实验 |
 

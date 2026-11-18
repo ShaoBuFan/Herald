@@ -94,5 +94,6 @@ export function buildListFilesTool(root: string): Tool {
     "列出项目内的文件与目录，用于了解项目结构。",
     LIST_FILES_PARAMETERS,
     (arguments_) => listFiles(root, arguments_),
+    "read",
   );
 }

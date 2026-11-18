@@ -9,6 +9,7 @@ import {
   type ToolCall,
 } from "../../core/models.js";
 import type { ModelAdapter } from "../../core/protocols.js";
+import type { PromptRegistry } from "../prompt/registry.js";
 import {
   DEFAULT_TIMEOUT,
   buildPayload,
@@ -19,13 +20,16 @@ import {
   resolveConfig,
   type StreamTransport,
 } from "./openai-common.js";
+import { applyPromptRegistry } from "./prompt.js";
 
 export interface StreamingChatCompletionsOptions {
   baseUrl?: string;
   apiKey?: string;
   model?: string;
+  promptRegistry?: PromptRegistry;
   onDelta?: (text: string) => void;
   onReasoningDelta?: (text: string) => void;
+  onUsage?: (usage: Record<string, unknown>) => void;
   transport?: StreamTransport;
   timeout?: number;
 }
@@ -53,8 +57,10 @@ export class StreamingChatCompletionsModel
   readonly apiKey: string;
   readonly model: string;
   readonly timeout: number;
+  readonly promptRegistry?: PromptRegistry;
   readonly onDelta?: (text: string) => void;
   readonly onReasoningDelta?: (text: string) => void;
+  readonly onUsage?: (usage: Record<string, unknown>) => void;
   readonly transport: StreamTransport;
 
   constructor(options: StreamingChatCompletionsOptions = {}) {
@@ -67,8 +73,10 @@ export class StreamingChatCompletionsModel
     this.apiKey = config.apiKey;
     this.model = config.model;
     this.timeout = options.timeout ?? DEFAULT_TIMEOUT;
+    this.promptRegistry = options.promptRegistry;
     this.onDelta = options.onDelta;
     this.onReasoningDelta = options.onReasoningDelta;
+    this.onUsage = options.onUsage;
     this.transport =
       options.transport ??
       ((url, headers, payload, signal) =>
@@ -85,7 +93,11 @@ export class StreamingChatCompletionsModel
     request: ModelRequest,
     signal?: AbortSignal,
   ): Promise<ModelTurn> {
-    const payload = buildPayload(this.model, request, {
+    const effective = applyPromptRegistry(
+      request,
+      this.promptRegistry,
+    );
+    const payload = buildPayload(this.model, effective, {
       stream: true,
     });
 
@@ -136,6 +148,7 @@ export class StreamingChatCompletionsModel
       const usageValue = chunk["usage"];
       if (isRecord(usageValue)) {
         usage = usageValue;
+        this.onUsage?.(usageValue);
       }
 
       const choices = chunk["choices"];

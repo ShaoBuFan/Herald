@@ -13,7 +13,7 @@
 | 部分 | 位置 | 是什么 |
 |---|---|---|
 | Herald 主体 | 代码目录尚未建立，当前工作区在 [`docs/`](docs/) | 从零构建的 TypeScript agent harness，路线图（第 4 节）的主体 |
-| CodeCLI | [`codecli/`](codecli/) | **活跃参考实现**：chatcli 的 TypeScript + React Ink 重写，111 个离线测试；本次移植由作者明确授权 AI 全量完成 |
+| CodeCLI | [`codecli/`](codecli/) | **活跃参考实现**：chatcli 的 TypeScript + React Ink 重写，Claude Code 风格 UI，8 个工具、4 种权限模式、144 个离线测试；本次移植由作者明确授权 AI 全量完成 |
 | chatcli | [`chatcli/`](chatcli/) | **Legacy 参考实现**：Python 版最小 Agent，81 个离线测试；保留用于对照与回归，不再新增功能 |
 | 实验室 | [`experiments/`](experiments/) | 可整体删除的实验区，当前只有 `text-protocol` 一个实验 |
 
@@ -225,7 +225,7 @@ CLI 跑顺之后再做，当作独立的前端学习课题（React + Vite + SSE 
 
 ### 并行轨道：CodeCLI、chatcli 与实验室
 
-- **CodeCLI**：`codecli/` 已完成 Python chatcli 的 TypeScript + React Ink 全量移植，111 个测试全部离线通过；覆盖 agent 循环、OpenAI 兼容适配器（含 SSE）、Mattermost XML 协议、prompt 注册表、文件工具、会话迁移与 Ink UI。定位与已知差异见 [`codecli/README.md`](codecli/README.md)。
+- **CodeCLI**：`codecli/` 已完成 Python chatcli 的 TypeScript + React Ink 全量移植，并扩展为 Claude Code 风格 UI、8 个工具、4 种权限模式与审批流、SSE 实时 token、todo 面板；144 个测试全部离线通过。定位与已知差异见 [`codecli/README.md`](codecli/README.md)。
 - **chatcli**：`sdk/` 已入库，81 个测试全部离线通过。**Legacy**，保留为 Python 对照实现；定位见 [`chatcli/README.md`](chatcli/README.md)（`plan.md` 未补、原项目其余目录尚未回迁）。
 - **实验室**（`experiments/`）：里程碑与删除条件写在各实验自己的 README，当前只有 [`text-protocol`](experiments/text-protocol/README.md)（文本 JSON 协议可行性）。
 
@@ -262,7 +262,7 @@ CLI 跑顺之后再做，当作独立的前端学习课题（React + Vite + SSE 
 
 **Herald 主体尚未搭建，暂无命令。** 仓库内已有的命令：
 
-CodeCLI（Node >= 20，pnpm，实测 111 例通过）：
+CodeCLI（Node >= 20，pnpm，实测 144 例通过）：
 
 ```bash
 cd codecli
@@ -325,6 +325,9 @@ node --test --test-isolation=none
 - **运行时**：Node >= 20（当前开发环境实测 Node 24）。Ink 6 与 React 19 是 UI 层依赖。
 - **包管理**：pnpm。依赖安装脚本的授权配置放在 `codecli/pnpm-workspace.yaml`（`allowBuilds` / `onlyBuiltDependencies`），避免 `ERR_PNPM_IGNORED_BUILDS`。
 - **分层**：`src/core/` 与 app 逻辑只用 Node 标准库；Ink/React 只允许出现在 `src/app/ui/` 与入口文件。这样核心语义可以脱离终端 UI 测试。
+- **职责边界**：命令分发在 `ui/commands.ts`，Agent 会话控制在 `ui/useAgentSession.ts`，`App.tsx` 只负责视图与输入；权限策略在 `app/modes.ts` 与 `tools/policy.ts`，UI 展示在 `ui/mode-presentation.ts`。
+- **工具与模式**：8 个工具通过应用层 kind 分类；`manual/accept/plan/auto` 四种模式在 `ToolExecutor` 边界过滤并做 y/n 审批。权限检查必须同时发生在工具列表与执行入口，不能只做 UI 展示。
+- **UI**：`<Static>` 承载 transcript，动态区承载 spinner、待执行工具、权限提示、todo 和 composer；不要把需要更新的状态放进 `<Static>`。
 - **测试**：`node:test` + `tsx`，全部离线；`tsc --noEmit` 是独立门禁。
 
 **chatcli（Legacy）**

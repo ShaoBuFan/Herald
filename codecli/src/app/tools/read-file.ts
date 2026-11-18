@@ -61,5 +61,6 @@ export function buildReadFileTool(root: string): Tool {
     "读取项目内文本文件的内容。查看源码或文档时使用。",
     READ_FILE_PARAMETERS,
     (arguments_) => readFile(root, arguments_),
+    "read",
   );
 }

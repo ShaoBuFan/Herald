@@ -11,6 +11,10 @@ import {
   type ToolSchema,
 } from "../../core/models.js";
 
+import {
+  createTimeoutSignal,
+} from "./signal.js";
+
 export const DEFAULT_BASE_URL = "https://api.openai.com/v1";
 export const DEFAULT_TIMEOUT = 240;
 
@@ -388,26 +392,7 @@ function createSignal(
   timeoutSeconds: number,
   external?: AbortSignal,
 ): AbortSignal {
-  const controller = new AbortController();
-  const timer = setTimeout(
-    () => controller.abort(),
-    timeoutSeconds * 1000,
-  );
-  timer.unref();
-
-  if (external) {
-    if (external.aborted) {
-      controller.abort();
-    } else {
-      external.addEventListener(
-        "abort",
-        () => controller.abort(),
-        { once: true },
-      );
-    }
-  }
-
-  return controller.signal;
+  return createTimeoutSignal(timeoutSeconds, external);
 }
 
 export async function httpPostJson(

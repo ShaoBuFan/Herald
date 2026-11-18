@@ -114,5 +114,6 @@ export function buildSearchTextTool(root: string): Tool {
     "在项目内文本文件中按关键字搜索，返回匹配行。",
     SEARCH_TEXT_PARAMETERS,
     (arguments_) => searchText(root, arguments_),
+    "read",
   );
 }

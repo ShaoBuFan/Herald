@@ -21,6 +21,10 @@ import type {
   JsonTransport,
   StreamTransport,
 } from "../../src/app/adapters/openai-common.js";
+import {
+  PromptRegistry,
+  PromptSection,
+} from "../../src/app/prompt/registry.js";
 
 interface RecordedCall {
   url: string;
@@ -136,6 +140,26 @@ test("chat completions payload and final response", async () => {
   >;
   assert.equal(tools[0]?.["type"], "function");
   assert.equal(call.payload["tool_choice"], "auto");
+});
+
+test("chat completions applies a prompt registry", async () => {
+  const transport = new RecordingJsonTransport({
+    choices: [{ message: { content: "hello" } }],
+  });
+  const model = new ChatCompletionsModel({
+    baseUrl: "https://example.com/v1",
+    apiKey: "k",
+    model: "m",
+    promptRegistry: makePromptRegistry(),
+    transport: transport.transport,
+  });
+
+  await model.complete(makeRequest());
+
+  assert.match(
+    systemMessage(transport.calls[0]),
+    /CUSTOM SECTION/,
+  );
 });
 
 test("chat completions parses native tool calls", async () => {
@@ -259,8 +283,10 @@ test("request without tools omits native tools", async () => {
 function makeStreamingModel(
   chunks: string[],
   options: {
+    promptRegistry?: PromptRegistry;
     onDelta?: (text: string) => void;
     onReasoningDelta?: (text: string) => void;
+    onUsage?: (usage: Record<string, unknown>) => void;
   } = {},
 ): {
   model: StreamingChatCompletionsModel;
@@ -271,15 +297,49 @@ function makeStreamingModel(
     baseUrl: "https://example.com/v1",
     apiKey: "k",
     model: "m",
+    promptRegistry: options.promptRegistry,
     transport: transport.transport,
     onDelta: options.onDelta,
     onReasoningDelta: options.onReasoningDelta,
+    onUsage: options.onUsage,
   });
   return { model, transport };
 }
 
+function makePromptRegistry(): PromptRegistry {
+  const registry = new PromptRegistry();
+  registry.register(
+    new PromptSection({
+      name: "custom",
+      render: (context) => `${context.system}\nCUSTOM SECTION`,
+      order: 100,
+    }),
+  );
+  return registry;
+}
+
+function systemMessage(
+  call: RecordedCall | undefined,
+): string {
+  const messages = call?.payload["messages"];
+  if (!Array.isArray(messages)) {
+    return "";
+  }
+  const system = messages[0];
+  if (
+    typeof system !== "object" ||
+    system === null ||
+    Array.isArray(system)
+  ) {
+    return "";
+  }
+  const content = (system as Record<string, unknown>)["content"];
+  return typeof content === "string" ? content : "";
+}
+
 test("streaming content deltas reach the app", async () => {
   const deltas: string[] = [];
+  const usages: Record<string, unknown>[] = [];
   const { model, transport } = makeStreamingModel(
     [
       sse({ choices: [{ delta: { content: "你" } }] }),
@@ -290,7 +350,10 @@ test("streaming content deltas reach the app", async () => {
       }),
       "data: [DONE]",
     ],
-    { onDelta: (text) => deltas.push(text) },
+    {
+      onDelta: (text) => deltas.push(text),
+      onUsage: (usage) => usages.push(usage),
+    },
   );
 
   const turn = await model.complete(makeRequest());
@@ -298,11 +361,29 @@ test("streaming content deltas reach the app", async () => {
   assert.deepEqual(deltas, ["你", "好"]);
   assert.equal(turn.content, "你好");
   assert.deepEqual(turn.usage, { total_tokens: 9 });
+  assert.deepEqual(usages, [{ total_tokens: 9 }]);
 
   const call = transport.calls[0];
   assert.ok(call);
   assert.equal(call.payload["stream"], true);
   assert.equal(call.headers["Accept"], "text/event-stream");
+});
+
+test("streaming adapter applies a prompt registry", async () => {
+  const { model, transport } = makeStreamingModel(
+    [
+      sse({ choices: [{ delta: { content: "ok" } }] }),
+      "data: [DONE]",
+    ],
+    { promptRegistry: makePromptRegistry() },
+  );
+
+  await model.complete(makeRequest());
+
+  assert.match(
+    systemMessage(transport.calls[0]),
+    /CUSTOM SECTION/,
+  );
 });
 
 test("streaming tool call fragments are reassembled", async () => {

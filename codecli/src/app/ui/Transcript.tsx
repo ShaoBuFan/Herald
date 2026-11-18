@@ -1,28 +1,27 @@
 import { Box, Text } from "ink";
 
+import {
+  Header,
+  type HeaderProps,
+} from "./Header.js";
 import { Markdown } from "./Markdown.js";
-import {
-  ToolCallLine,
-  ToolResultLine,
-} from "./ToolCard.js";
-import {
-  Welcome,
-  type WelcomeProps,
-} from "./Welcome.js";
+import { SectionBar } from "./SectionBar.js";
+import { ToolActivity } from "./ToolActivity.js";
 
 export type SystemTone = "info" | "error" | "warning";
 
 export type NewTranscriptItem =
-  | { kind: "welcome"; data: WelcomeProps }
+  | { kind: "header"; data: HeaderProps }
   | { kind: "user"; text: string }
   | { kind: "thought"; text: string }
   | { kind: "assistant"; text: string }
-  | { kind: "tool"; name: string; detail: string }
   | {
-      kind: "result";
+      kind: "tool";
       name: string;
+      arguments: Record<string, unknown>;
       data: unknown;
       error: string | null;
+      durationMs: number;
     }
   | { kind: "system"; text: string; tone?: SystemTone }
   | { kind: "summary"; text: string };
@@ -63,16 +62,11 @@ export function TranscriptItemView({
   item: TranscriptItem;
 }) {
   switch (item.kind) {
-    case "welcome":
-      return <Welcome {...item.data} />;
+    case "header":
+      return <Header {...item.data} />;
 
     case "user":
-      return (
-        <Box marginTop={1}>
-          <Text color="yellow">You</Text>
-          <Text> {item.text}</Text>
-        </Box>
-      );
+      return <SectionBar title={item.text} />;
 
     case "thought":
       return (
@@ -84,23 +78,22 @@ export function TranscriptItemView({
 
     case "assistant":
       return (
-        <Box flexDirection="column" marginTop={1}>
-          <Text color="green">⏺</Text>
-          <Markdown text={item.text} indent={2} />
+        <Box flexDirection="row" marginTop={1}>
+          <Text color="green">● </Text>
+          <Box flexDirection="column" flexGrow={1}>
+            <Markdown text={item.text} widthOffset={2} />
+          </Box>
         </Box>
       );
 
     case "tool":
       return (
-        <ToolCallLine name={item.name} detail={item.detail} />
-      );
-
-    case "result":
-      return (
-        <ToolResultLine
+        <ToolActivity
           name={item.name}
+          arguments={item.arguments}
           data={item.data}
           error={item.error}
+          durationMs={item.durationMs}
         />
       );
 

@@ -437,3 +437,63 @@ test("tool outside the run snapshot is rejected", async () => {
     ["read_file"],
   );
 });
+
+class SignalCapturingExecutor implements ToolExecutor {
+  signal: AbortSignal | undefined;
+  executed = false;
+
+  listTools(): ToolSchema[] {
+    return [
+      {
+        name: "read_file",
+        description: "read",
+        parameters: { type: "object" },
+      },
+    ];
+  }
+
+  execute(
+    _name: string,
+    _arguments: Record<string, unknown>,
+    context?: { signal?: AbortSignal },
+  ): unknown {
+    this.executed = true;
+    this.signal = context?.signal;
+    return "ok";
+  }
+}
+
+test("agent passes the run signal to tool execution", async () => {
+  const executor = new SignalCapturingExecutor();
+  const controller = new AbortController();
+  const { agent } = makeAgent(
+    [
+      toolTurn({
+        id: "c1",
+        name: "read_file",
+        arguments: { path: "a" },
+      }),
+      finalTurn("ok"),
+    ],
+    executor,
+  );
+
+  const result = await agent.run("hi", {
+    signal: controller.signal,
+  });
+
+  assert.equal(result.final, "ok");
+  assert.equal(executor.executed, true);
+  assert.equal(executor.signal, controller.signal);
+});
+
+test("agent refuses to start an aborted run", async () => {
+  const controller = new AbortController();
+  controller.abort();
+  const { agent } = makeAgent([finalTurn("never")]);
+
+  await assert.rejects(
+    () => agent.run("hi", { signal: controller.signal }),
+    /agent run aborted/,
+  );
+});

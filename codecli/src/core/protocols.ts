@@ -5,6 +5,10 @@ import type {
   ToolSchema,
 } from "./models.js";
 
+export interface ToolContext {
+  signal?: AbortSignal;
+}
+
 export interface ModelAdapter {
   complete(
     request: ModelRequest,
@@ -24,6 +28,7 @@ export interface ToolExecutor {
   execute(
     name: string,
     arguments_: Record<string, unknown>,
+    context?: ToolContext,
   ): Promise<unknown> | unknown;
 }
 

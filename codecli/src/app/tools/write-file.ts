@@ -71,5 +71,6 @@ export function buildWriteFileTool(root: string): Tool {
     "写入或覆盖项目内的文本文件。只在确实需要修改文件时使用。",
     WRITE_FILE_PARAMETERS,
     (arguments_) => writeFile(root, arguments_),
+    "write",
   );
 }

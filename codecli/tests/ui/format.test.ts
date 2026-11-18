@@ -3,18 +3,26 @@ import test from "node:test";
 
 import {
   displayToolName,
+  formatDuration,
   formatSize,
+  formatTokens,
   formatToolCallArguments,
+  presentToolCall,
   summarizeToolResult,
+  toolResultDetail,
   truncate,
 } from "../../src/app/ui/format.js";
 
 test("displayToolName maps known tools and falls back", () => {
   assert.equal(displayToolName("read_file"), "Read");
   assert.equal(displayToolName("write_file"), "Write");
+  assert.equal(displayToolName("edit"), "Update");
   assert.equal(displayToolName("list_files"), "List");
-  assert.equal(displayToolName("search_text"), "Search");
-  assert.equal(displayToolName("bash"), "bash");
+  assert.equal(displayToolName("search_text"), "Grep");
+  assert.equal(displayToolName("glob"), "Glob");
+  assert.equal(displayToolName("bash"), "Bash");
+  assert.equal(displayToolName("todo_write"), "Todo");
+  assert.equal(displayToolName("custom"), "custom");
 });
 
 test("formatSize switches units", () => {
@@ -23,6 +31,17 @@ test("formatSize switches units", () => {
   assert.equal(formatSize(1024), "1.0 KB");
   assert.equal(formatSize(1536), "1.5 KB");
   assert.equal(formatSize(1024 * 1024), "1.0 MB");
+});
+
+test("formatDuration and formatTokens use compact forms", () => {
+  assert.equal(formatDuration(0), "0.0s");
+  assert.equal(formatDuration(200), "0.2s");
+  assert.equal(formatDuration(12_000), "12s");
+  assert.equal(formatDuration(65_000), "1m 5s");
+  assert.equal(formatTokens(0), "0");
+  assert.equal(formatTokens(717), "717");
+  assert.equal(formatTokens(1500), "1.5k");
+  assert.equal(formatTokens(12_000), "12k");
 });
 
 test("truncate counts code points and handles limits", () => {
@@ -56,11 +75,24 @@ test("formatToolCallArguments prefers readable keys", () => {
     }),
     "needle, docs",
   );
+  assert.equal(
+    formatToolCallArguments("bash", {
+      command: "git status",
+      timeout: 5,
+    }),
+    "git status",
+  );
+  assert.equal(
+    formatToolCallArguments("todo_write", {
+      todos: [{ content: "a" }, { content: "b" }],
+    }),
+    "2 tasks",
+  );
 });
 
 test("formatToolCallArguments falls back to key=value", () => {
   assert.equal(
-    formatToolCallArguments("bash", {
+    formatToolCallArguments("custom", {
       command: "ls",
       timeout: 5,
     }),
@@ -75,6 +107,33 @@ test("formatToolCallArguments falls back to key=value", () => {
   );
 });
 
+test("presentToolCall builds Claude-style action lines", () => {
+  assert.deepEqual(
+    presentToolCall("read_file", { path: "README.md" }, "active"),
+    { action: "Reading README.md" },
+  );
+  assert.deepEqual(
+    presentToolCall("bash", { command: "git status" }, "active"),
+    {
+      action: "Running command",
+      command: "$ git status",
+    },
+  );
+  assert.equal(
+    presentToolCall("bash", { command: "git status" }, "done")
+      .action,
+    "Ran command",
+  );
+  assert.equal(
+    presentToolCall("todo_write", {}, "done").action,
+    "Updated todo list",
+  );
+  assert.equal(
+    presentToolCall("custom", { x: 1 }, "done").action,
+    'custom x=1',
+  );
+});
+
 test("summarizeToolResult reports explicit errors", () => {
   assert.deepEqual(
     summarizeToolResult("read_file", null, "boom"),
@@ -86,6 +145,14 @@ test("summarizeToolResult reports explicit errors", () => {
   );
   assert.deepEqual(
     summarizeToolResult(
+      "bash",
+      null,
+      "permission denied by user: bash",
+    ),
+    { text: "Not run · denied", error: true },
+  );
+  assert.deepEqual(
+    summarizeToolResult(
       "read_file",
       { error: "partial", content: "ok" },
       null,
@@ -94,7 +161,7 @@ test("summarizeToolResult reports explicit errors", () => {
   );
 });
 
-test("summarizeToolResult summarizes read_file content", () => {
+test("summarizeToolResult summarizes file tools", () => {
   assert.deepEqual(
     summarizeToolResult(
       "read_file",
@@ -103,17 +170,6 @@ test("summarizeToolResult summarizes read_file content", () => {
     ),
     { text: "Read 3 lines (4 B)", error: false },
   );
-  assert.deepEqual(
-    summarizeToolResult(
-      "read_file",
-      { content: "", truncated: true },
-      null,
-    ),
-    { text: "Read 0 lines (0 B, truncated)", error: false },
-  );
-});
-
-test("summarizeToolResult summarizes listings, search and writes", () => {
   assert.deepEqual(
     summarizeToolResult(
       "list_files",
@@ -128,19 +184,11 @@ test("summarizeToolResult summarizes listings, search and writes", () => {
   );
   assert.deepEqual(
     summarizeToolResult(
-      "list_files",
-      { files: [], directories: [], truncated: true },
-      null,
-    ),
-    { text: "List 0 files, 0 directories, truncated", error: false },
-  );
-  assert.deepEqual(
-    summarizeToolResult(
       "search_text",
       { results: [{ path: "a.ts", line: 1 }], truncated: false },
       null,
     ),
-    { text: "Search 1 match", error: false },
+    { text: "Grep 1 match", error: false },
   );
   assert.deepEqual(
     summarizeToolResult(
@@ -150,12 +198,97 @@ test("summarizeToolResult summarizes listings, search and writes", () => {
     ),
     { text: "Wrote out.txt (2.0 KB)", error: false },
   );
+  assert.deepEqual(
+    summarizeToolResult(
+      "edit",
+      { path: "a.ts", replacements: 2, bytes_written: 4 },
+      null,
+    ),
+    { text: "Updated 2 replacements · 4 B", error: false },
+  );
+  assert.deepEqual(
+    summarizeToolResult(
+      "glob",
+      { files: ["a.ts", "b.ts"], truncated: false },
+      null,
+    ),
+    { text: "Glob 2 files", error: false },
+  );
+});
+
+test("summarizeToolResult summarizes bash and todo", () => {
+  assert.deepEqual(
+    summarizeToolResult(
+      "bash",
+      {
+        stdout: "a\nb\n",
+        stderr: "",
+        exit_code: 0,
+        timed_out: false,
+        aborted: false,
+        truncated: false,
+      },
+      null,
+    ),
+    { text: "Bash exit 0 · 3 lines", error: false },
+  );
+  assert.deepEqual(
+    summarizeToolResult(
+      "bash",
+      {
+        stdout: "",
+        stderr: "",
+        exit_code: null,
+        timed_out: true,
+        aborted: false,
+        truncated: false,
+      },
+      null,
+    ),
+    { text: "Bash Timed out", error: false },
+  );
+  assert.deepEqual(
+    summarizeToolResult(
+      "todo_write",
+      {
+        todos: [
+          { content: "a", status: "completed" },
+          { content: "b", status: "in_progress" },
+        ],
+      },
+      null,
+    ),
+    { text: "Todo 1/2 done · 1 in progress", error: false },
+  );
+});
+
+test("toolResultDetail returns the nested detail without the verb", () => {
+  assert.deepEqual(
+    toolResultDetail(
+      "read_file",
+      { content: "a\nb\n", truncated: false },
+      null,
+    ),
+    { text: "3 lines (4 B)", error: false },
+  );
+  assert.deepEqual(
+    toolResultDetail(
+      "glob",
+      { files: ["a", "b"], truncated: true },
+      null,
+    ),
+    { text: "2 files, truncated", error: false },
+  );
+  assert.deepEqual(
+    toolResultDetail("bash", null, "permission denied"),
+    { text: "Not run · denied", error: true },
+  );
 });
 
 test("summarizeToolResult handles generic payloads", () => {
   assert.deepEqual(
     summarizeToolResult("read_file", "line one\nline two", null),
-    { text: "Read: line one line two", error: false },
+    { text: "Read line one line two", error: false },
   );
   assert.deepEqual(
     summarizeToolResult("read_file", null, null),
@@ -163,6 +296,6 @@ test("summarizeToolResult handles generic payloads", () => {
   );
   assert.deepEqual(
     summarizeToolResult("read_file", 42, null),
-    { text: "Read: 42", error: false },
+    { text: "Read 42", error: false },
   );
 });

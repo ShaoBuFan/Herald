@@ -174,6 +174,10 @@ export class Agent {
         const results: ToolResult[] = [];
 
         for (const call of turn.toolCalls) {
+          if (options.signal?.aborted) {
+            throw new AgentError("agent run aborted");
+          }
+
           yield* this.emit({
             type: "tool_call",
             data: {
@@ -194,6 +198,7 @@ export class Agent {
             const data = await this.tools.execute(
               call.name,
               call.arguments,
+              { signal: options.signal },
             );
             result = {
               id: call.id,
